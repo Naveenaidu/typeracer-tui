@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 239f20a6f0e1e9c47356d1eb3cefe332ed76fb8e3c3638fd949b990140f0aef3
+-- hash: 6ac93d6a318044feac9ee1219ab53f551e2dda13402a71f47b80722ad81d1d22
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -35,6 +35,10 @@ library
   build-depends:
       base >=4.7 && <5
     , brick
+    , lens
+    , microlens
+    , microlens-th
+    , vty
   default-language: Haskell2010
 
 executable typeracer-tui-exe
@@ -47,7 +51,11 @@ executable typeracer-tui-exe
   build-depends:
       base >=4.7 && <5
     , brick
+    , lens
+    , microlens
+    , microlens-th
     , typeracer-tui
+    , vty
   default-language: Haskell2010
 
 test-suite typeracer-tui-test
@@ -61,5 +69,9 @@ test-suite typeracer-tui-test
   build-depends:
       base >=4.7 && <5
     , brick
+    , lens
+    , microlens
+    , microlens-th
     , typeracer-tui
+    , vty
   default-language: Haskell2010
