@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 02413112738a2159dc07c20745f234a27b3e7fda704f8a46eadf156b4c018cbe
+-- hash: 239f20a6f0e1e9c47356d1eb3cefe332ed76fb8e3c3638fd949b990140f0aef3
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , brick
   default-language: Haskell2010
 
 executable typeracer-tui-exe
@@ -45,6 +46,7 @@ executable typeracer-tui-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , brick
     , typeracer-tui
   default-language: Haskell2010
 
@@ -58,5 +60,6 @@ test-suite typeracer-tui-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , brick
     , typeracer-tui
   default-language: Haskell2010
