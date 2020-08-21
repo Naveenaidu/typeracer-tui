@@ -13,6 +13,8 @@ import qualified Brick.Focus                as F
 import qualified Brick.Widgets.Edit         as E
 import qualified Brick.Widgets.Center       as C
 import qualified Brick.Types                as T
+import qualified Brick.Main                 as M
+import qualified Graphics.Vty               as V
 
 import Brick.Widgets.Core
   ( (<+>)
@@ -41,8 +43,7 @@ tui :: IO ()
 tui = do
   initialState <- buildInitialState
   endState <- defaultMain tuiApp initialState
-  putStrLn "Hello"
-
+  putStrLn $ unlines $ E.getEditContents $ endState^.typeBox
 
 -- | The initial config to out APP, specifying various functions
 -- | appDraw: Turns the current app state into a list of layers of type Widget
@@ -65,7 +66,7 @@ buildInitialState = do
                   }
 
 -- | The cursor as I understand is used to send the information from widget back to program, think of it like dbms cursor
-appCursor :: TuiState -> [T.CursorLocation Name] -> Maybe (T.CursorLocation Name)
+appCursor :: TuiState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 appCursor = F.focusRingCursor (^.focusRing)
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
@@ -85,6 +86,19 @@ drawTui ts = [ui]
 
 
 -- | Handle the events. This is where Keyboard events will be captured.
-handleTuiEvent :: TuiState -> BrickEvent n e -> EventM n (Next TuiState)
-handleTuiEvent s e = undefined
+-- | Continue takes a updated state and applies it
+-- | `%~` modifies the value of a field. Like a setter
+-- | `&` 
+handleTuiEvent :: TuiState -> BrickEvent Name e -> EventM Name (Next TuiState)
+handleTuiEvent ts (VtyEvent ev) = 
+    case ev of
+        V.EvKey V.KEsc [] -> M.halt ts
+        V.EvKey (V.KChar '\t') [] -> M.continue $ ts & focusRing %~ F.focusNext
+        V.EvKey V.KBackTab [] -> M.continue $ ts & focusRing %~ F.focusPrev
 
+        -- For any other character get the currently-focused name in the ring
+        _ -> M.continue =<< case F.focusGetCurrent (ts^.focusRing) of
+                Just TypeBox -> T.handleEventLensed ts typeBox E.handleEditorEvent ev
+                Nothing      -> return ts
+
+handleTuiEvent ts _ = M.continue ts
