@@ -8,9 +8,11 @@ import Lens.Micro.TH
 import Brick
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
-import qualified Brick.Focus as F
-import qualified Brick.Widgets.Edit as E
-import qualified Brick.Widgets.Center as C
+
+import qualified Brick.Focus                as F
+import qualified Brick.Widgets.Edit         as E
+import qualified Brick.Widgets.Center       as C
+import qualified Brick.Types                as T
 
 import Brick.Widgets.Core
   ( (<+>)
@@ -48,7 +50,7 @@ tuiApp :: App TuiState e Name
 tuiApp =
   App
     { appDraw = drawTui
-    , appChooseCursor = showFirstCursor
+    , appChooseCursor = appCursor
     , appHandleEvent = handleTuiEvent
     , appStartEvent = pure
     , appAttrMap = const $ attrMap mempty []
@@ -61,6 +63,10 @@ buildInitialState = do
                   , _quoteBox = "Quote to type"
                   , _typeBox = E.editor TypeBox Nothing ""
                   }
+
+-- | The cursor as I understand is used to send the information from widget back to program, think of it like dbms cursor
+appCursor :: TuiState -> [T.CursorLocation Name] -> Maybe (T.CursorLocation Name)
+appCursor = F.focusRingCursor (^.focusRing)
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
