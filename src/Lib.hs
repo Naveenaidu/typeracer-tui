@@ -8,14 +8,6 @@ import Lens.Micro.TH
 import Brick
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
-
-import qualified Brick.Focus                as F
-import qualified Brick.Widgets.Edit         as E
-import qualified Brick.Widgets.Center       as C
-import qualified Brick.Types                as T
-import qualified Brick.Main                 as M
-import qualified Graphics.Vty               as V
-
 import Brick.Widgets.Core
   ( (<+>)
   , (<=>)
@@ -24,6 +16,14 @@ import Brick.Widgets.Core
   , str
   )
 
+import qualified Brick.Focus                as F
+import qualified Brick.Widgets.Edit         as E
+import qualified Brick.Widgets.Center       as C
+import qualified Brick.Types                as T
+import qualified Brick.Main                 as M
+import qualified Graphics.Vty               as V
+
+import Game
 -- | Named resoureced
 data Name = QuoteBox | TypeBox 
             deriving (Ord, Show, Eq)

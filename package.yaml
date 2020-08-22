@@ -26,6 +26,8 @@ dependencies:
 - vty
 - microlens
 - microlens-th
+- time
+- text
 
 library:
   source-dirs: src
