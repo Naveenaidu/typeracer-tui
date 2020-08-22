@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6ac93d6a318044feac9ee1219ab53f551e2dda13402a71f47b80722ad81d1d22
+-- hash: 7c0bfff9fa7d5f07b46a154d7e7edb4c7c02706f11608f1d36b79855cf7e28c0
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Game
       Lib
   other-modules:
       Paths_typeracer_tui
@@ -38,6 +39,8 @@ library
     , lens
     , microlens
     , microlens-th
+    , text
+    , time
     , vty
   default-language: Haskell2010
 
@@ -54,6 +57,8 @@ executable typeracer-tui-exe
     , lens
     , microlens
     , microlens-th
+    , text
+    , time
     , typeracer-tui
     , vty
   default-language: Haskell2010
@@ -72,6 +77,8 @@ test-suite typeracer-tui-test
     , lens
     , microlens
     , microlens-th
+    , text
+    , time
     , typeracer-tui
     , vty
   default-language: Haskell2010
