@@ -24,6 +24,7 @@ import qualified Brick.Main                 as M
 import qualified Graphics.Vty               as V
 
 import Game
+
 -- | Named resoureced
 data Name = QuoteBox | TypeBox 
             deriving (Ord, Show, Eq)
@@ -31,12 +32,30 @@ data Name = QuoteBox | TypeBox
 -- | The state of the game
 -- | We'll make a lens out of it, so that we have getters and setter
 data TuiState =
-    TuiState {  _focusRing  :: F.FocusRing Name
+    TuiState {  _game       :: Game 
+             ,  _focusRing  :: F.FocusRing Name
              ,  _quoteBox   :: String
              ,  _typeBox    :: E.Editor String Name
              }
 
 makeLenses ''TuiState
+
+-- | An attribute for HIT, Use this attribute when you have HIT action
+hitAttrName :: AttrName 
+hitAttrName = attrName "Hit"
+
+missAttrName :: AttrName
+missAttrName = attrName "Miss"
+
+-- | Draw the character, If Miss color the character with RED
+-- | str :: String -> Widget n
+drawCharacter :: Character -> Widget ()
+drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
+drawCharacter (Miss c) = withAttr missAttrName $ str [c]
+
+drawLine :: Line -> Widget ()
+drawLine [] = str " "
+drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
 -- | The main application to draw the UI
 tui :: IO ()
@@ -73,8 +92,6 @@ appCursor = F.focusRingCursor (^.focusRing)
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
 -- | `ts^.typeBox` means get the `_typeBox` constructor from TuiState
 -- | FocusRing helps to keep focus on the Named Resource. This also gives cursor to the edit box
-
--- TODO: Add Focus to Editor Box to get the cursor where you can type
 drawTui :: TuiState -> [Widget Name]
 drawTui ts = [ui]
     where
@@ -88,7 +105,7 @@ drawTui ts = [ui]
 -- | Handle the events. This is where Keyboard events will be captured.
 -- | Continue takes a updated state and applies it
 -- | `%~` modifies the value of a field. Like a setter
--- | `&` 
+-- | `&` is the reverse of `$` ie. You give the argument first and then the function. Eg: num & add == add $ num
 handleTuiEvent :: TuiState -> BrickEvent Name e -> EventM Name (Next TuiState)
 handleTuiEvent ts (VtyEvent ev) = 
     case ev of
@@ -102,4 +119,3 @@ handleTuiEvent ts (VtyEvent ev) =
                 Nothing      -> return ts
 
 handleTuiEvent ts _ = M.continue ts
-
