@@ -31,6 +31,7 @@ data Name = QuoteBox | TypeBox
 
 -- | The state of the game
 -- | We'll make a lens out of it, so that we have getters and setter
+-- | QUESTION: Do we really need a EDIT box? ?
 data TuiState =
     TuiState {  _game       :: Game 
              ,  _focusRing  :: F.FocusRing Name
@@ -101,6 +102,9 @@ drawTui ts = [ui]
                     vBox [str (ts^.quoteBox), fill ' ', hBorder] <=>
                      (hLimit 30 $ vLimit 5 typeBox')
 
+
+handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
+handleChar char ts = M.continue $ ts & game %~ (applyChar char)
 
 -- | Handle the events. This is where Keyboard events will be captured.
 -- | Continue takes a updated state and applies it
