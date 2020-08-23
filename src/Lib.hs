@@ -102,3 +102,4 @@ handleTuiEvent ts (VtyEvent ev) =
                 Nothing      -> return ts
 
 handleTuiEvent ts _ = M.continue ts
+

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Game where
+module Game  where
 
 import Data.Time  (UTCTime, diffUTCTime)
 import Lens.Micro
@@ -12,7 +12,7 @@ import qualified Data.Text  as T
 newtype Quote = Quote { unQuote :: T.Text } deriving (Show)
 newtype Input = Input { unInput :: T.Text } deriving (Show)
 
-data State = State
+data Game = Game
   {
     _quote     :: Quote
   , _input     :: Input
@@ -22,12 +22,14 @@ data State = State
   , _strokes   :: Int
   } deriving (Show)
 
-makeLenses ''State
+makeLenses ''Game
 
 -- | The character can either be hit correctly or missed
 data Character = 
     Hit Char
   | Miss Char
+
+type Line = [Character]
 
 -- | Take Quote and Input String and give back the list of character
 -- | quote' are the characters from Quote that we match with the input string
@@ -38,13 +40,31 @@ character (Quote quote) (Input input) = map mkChar $ T.zip quote' input
           | q == i    = Hit i
           | otherwise = Miss i
 
-isErrorFree :: State -> Bool
-isErrorFree st = undefined
+-- | Check if the Input at time `t` is equal to that much part of quote
+isErrorFree :: Game -> Bool
+isErrorFree st = input' `T.isPrefixOf` quote'
+  where quote' = st^.quote & unQuote
+        input'  = st^.input & unInput
 
-applyChar :: Char -> State -> State
+-- | The game is complete when input is equal to quote
+isComplete :: Game -> Bool
+isComplete st = quote' == input'
+  where quote' = st^.quote & unQuote
+        input'  = st^.input & unInput
+
+applyChar :: Char -> Game -> Game
 applyChar char st = st & (strokes +~ 1) . (input %~ appendInput) . (hits +~ isErrorFree')
   where appendInput = Input <$> (T.cons char) . unInput
         isErrorFree' = if isErrorFree st then 1 else 0
+
+applyBackSpace :: Game -> Game
+applyBackSpace =  undefined
+
+applyBackSpaceWord :: Game -> Game
+applyBackSpaceWord = undefined
+
+applyWhiteSpace :: Game -> Game
+applyWhiteSpace = undefined
 
 test :: IO ()
 test = putStrLn "Hello"
