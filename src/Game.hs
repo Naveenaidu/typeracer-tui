@@ -5,6 +5,7 @@ module Game  where
 import Data.Time  (UTCTime, diffUTCTime)
 import Lens.Micro
 import Lens.Micro.TH
+import           Data.Char  (isSpace)
 
 import qualified Data.Text  as T
 
@@ -23,6 +24,17 @@ data Game = Game
   } deriving (Show)
 
 makeLenses ''Game
+
+initialState :: String -> Game
+initialState t =
+  Game
+    { _quote = Quote (T.pack t)
+    , _input = Input (T.pack " ")
+    , _startTime = Nothing
+    , _endTime = Nothing
+    , _strokes = 0
+    , _hits = 0
+    }
 
 -- | The character can either be hit correctly or missed
 data Character = 
@@ -52,9 +64,11 @@ isComplete st = quote' == input'
   where quote' = st^.quote & unQuote
         input'  = st^.input & unInput
 
+-- | TODO: use appendInput instead of newInput
 applyChar :: Char -> Game -> Game
-applyChar char st = st & (strokes +~ 1) . (input %~ appendInput) . (hits +~ isErrorFree')
-  where appendInput = Input <$> (T.cons char) . unInput
+applyChar char st = st & (strokes +~ 1) . (input .~ newInput) . (hits +~ isErrorFree')
+  where appendInput = Input <$>  (T.cons char) . unInput
+        newInput = Input $ T.snoc (unInput (st ^. input)) char
         isErrorFree' = if isErrorFree st then 1 else 0
 
 applyBackSpace :: Game -> Game

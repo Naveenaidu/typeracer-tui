@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Lib
     ( tui
     ) where
@@ -34,10 +36,9 @@ data Name = QuoteBox | TypeBox
 -- | QUESTION: Do we really need a EDIT box? ?
 data TuiState =
     TuiState {  _game       :: Game 
-             ,  _focusRing  :: F.FocusRing Name
              ,  _quoteBox   :: String
              ,  _typeBox    :: E.Editor String Name
-             }
+             } deriving (Show)
 
 makeLenses ''TuiState
 
@@ -58,12 +59,16 @@ drawLine :: Line -> Widget ()
 drawLine [] = str " "
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
+-- | Takes the state, Creates the characters and draws the line
+drawText :: TuiState -> Widget ()
+drawText st = undefined
+
 -- | The main application to draw the UI
 tui :: IO ()
 tui = do
   initialState <- buildInitialState
   endState <- defaultMain tuiApp initialState
-  putStrLn $ unlines $ E.getEditContents $ endState^.typeBox
+  putStrLn $ show endState 
 
 -- | The initial config to out APP, specifying various functions
 -- | appDraw: Turns the current app state into a list of layers of type Widget
@@ -71,7 +76,7 @@ tuiApp :: App TuiState e Name
 tuiApp =
   App
     { appDraw = drawTui
-    , appChooseCursor = appCursor
+    , appChooseCursor = showFirstCursor
     , appHandleEvent = handleTuiEvent
     , appStartEvent = pure
     , appAttrMap = const $ attrMap mempty []
@@ -80,14 +85,14 @@ tuiApp =
 -- | Initial state of the APP
 buildInitialState :: IO TuiState
 buildInitialState = do
-    pure TuiState { _focusRing =  F.focusRing [TypeBox]
+    pure TuiState { _game = initialState "Hello"
                   , _quoteBox = "Quote to type"
                   , _typeBox = E.editor TypeBox Nothing ""
                   }
 
 -- | The cursor as I understand is used to send the information from widget back to program, think of it like dbms cursor
-appCursor :: TuiState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
-appCursor = F.focusRingCursor (^.focusRing)
+-- appCursor :: TuiState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
+-- appCursor = F.focusRingCursor (^.focusRing)
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
@@ -96,7 +101,7 @@ appCursor = F.focusRingCursor (^.focusRing)
 drawTui :: TuiState -> [Widget Name]
 drawTui ts = [ui]
     where
-        typeBox' = F.withFocusRing (ts^.focusRing)(E.renderEditor (str . unlines)) (ts^.typeBox)
+        typeBox' =E.renderEditor (str . unlines) False (ts^.typeBox)
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
                     vBox [str (ts^.quoteBox), fill ' ', hBorder] <=>
@@ -114,12 +119,8 @@ handleTuiEvent :: TuiState -> BrickEvent Name e -> EventM Name (Next TuiState)
 handleTuiEvent ts (VtyEvent ev) = 
     case ev of
         V.EvKey V.KEsc [] -> M.halt ts
-        V.EvKey (V.KChar '\t') [] -> M.continue $ ts & focusRing %~ F.focusNext
-        V.EvKey V.KBackTab [] -> M.continue $ ts & focusRing %~ F.focusPrev
-
-        -- For any other character get the currently-focused name in the ring
-        _ -> M.continue =<< case F.focusGetCurrent (ts^.focusRing) of
-                Just TypeBox -> T.handleEventLensed ts typeBox E.handleEditorEvent ev
-                Nothing      -> return ts
+        -- V.EvKey (V.KChar '\t') [] -> M.continue $ ts & focusRing %~ F.focusNext
+        -- V.EvKey V.KBackTab [] -> M.continue $ ts & focusRing %~ F.focusPrev
+        V.EvKey (V.KChar c) [] -> handleChar c ts
 
 handleTuiEvent ts _ = M.continue ts
