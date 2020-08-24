@@ -40,6 +40,7 @@ initialState t =
 data Character = 
     Hit Char
   | Miss Char
+    deriving (Show)
 
 type Line = [Character]
 
@@ -47,8 +48,11 @@ type Line = [Character]
 -- | quote' are the characters from Quote that we match with the input string
 -- | FIX LOGIC, it's wrong
 character :: Quote -> Input -> [Character]
-character (Quote quote) (Input input) = map mkChar $ T.zip quote' input
-  where quote' = T.take (T.length input)  quote
+character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Miss c) remElems)
+  where lenInput = (T.length input)
+        lenQuote = (T.length quote)
+        quote' = T.take lenInput  quote
+        remElems  = [  T.index input i  | i <- [lenQuote+1, lenQuote+2 .. lenInput-1] ]
         mkChar (q,i)
           | q == i    = Hit i
           | otherwise = Miss i
