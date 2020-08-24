@@ -28,8 +28,7 @@ import qualified Graphics.Vty               as V
 import Game
 
 -- | Named resoureced
-data Name = QuoteBox | TypeBox 
-            deriving (Ord, Show, Eq)
+type Name = () 
 
 -- | The state of the game
 -- | We'll make a lens out of it, so that we have getters and setter
@@ -55,7 +54,7 @@ drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
 drawCharacter (Miss c) = withAttr missAttrName $ str [' ']
 
 drawLine :: Line -> Widget Name
-drawLine [] = str [' ']
+drawLine [] = emptyWidget
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
 -- | Takes the state, Creates the characters and draws the line
@@ -66,6 +65,16 @@ drawText st = padBottom (Pad 2)  (drawLine characters)
         quote' = (st ^. game) ^. quote
         characters = character quote' input' 
         
+-- | Change TuiState to drawable Widgets. This does the actual drawing
+-- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
+-- | TODO: No idea why `typebox` has space at the beginning
+drawTui :: TuiState -> [Widget Name]
+drawTui ts = [ui]
+    where
+        ui = withBorderStyle unicode $
+                borderWithLabel (str "TypeRacer") $ 
+                    vBox [str (ts^.quoteBox), fill ' ', hBorder] 
+                    <=> showCursor () (Location $ cursor (ts^.game) ) (drawText ts)
 
 -- | The main application to draw the UI
 tui :: IO ()
@@ -97,15 +106,7 @@ buildInitialState = do
 -- appCursor :: TuiState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 -- appCursor = F.focusRingCursor (^.focusRing)
 
--- | Change TuiState to drawable Widgets. This does the actual drawing
--- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
--- | TODO: No idea why `typebox` has space at the beginning
-drawTui :: TuiState -> [Widget Name]
-drawTui ts = [ui]
-    where
-        ui = withBorderStyle unicode $
-                borderWithLabel (str "TypeRacer") $ 
-                    vBox [str (ts^.quoteBox), fill ' ', hBorder] <=> (drawText ts)
+
 
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
