@@ -37,7 +37,6 @@ data Name = QuoteBox | TypeBox
 data TuiState =
     TuiState {  _game       :: Game 
              ,  _quoteBox   :: String
-             ,  _typeBox    :: E.Editor String Name
              } deriving (Show)
 
 makeLenses ''TuiState
@@ -51,17 +50,22 @@ missAttrName = attrName "Miss"
 
 -- | Draw the character, If Miss color the character with RED
 -- | str :: String -> Widget n
-drawCharacter :: Character -> Widget ()
+drawCharacter :: Character -> Widget Name
 drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
-drawCharacter (Miss c) = withAttr missAttrName $ str [c]
+drawCharacter (Miss c) = withAttr missAttrName $ str [' ']
 
-drawLine :: Line -> Widget ()
-drawLine [] = str " "
+drawLine :: Line -> Widget Name
+drawLine [] = str [' ']
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
 -- | Takes the state, Creates the characters and draws the line
-drawText :: TuiState -> Widget ()
-drawText st = undefined
+-- | Is there a better way to write the lenses.
+drawText :: TuiState -> Widget Name
+drawText st = padBottom (Pad 2)  (drawLine characters)
+  where input' = (st ^. game) ^. input
+        quote' = (st ^. game) ^. quote
+        characters = character quote' input' 
+        
 
 -- | The main application to draw the UI
 tui :: IO ()
@@ -85,9 +89,8 @@ tuiApp =
 -- | Initial state of the APP
 buildInitialState :: IO TuiState
 buildInitialState = do
-    pure TuiState { _game = initialState "Hello"
-                  , _quoteBox = "Quote to type"
-                  , _typeBox = E.editor TypeBox Nothing ""
+    pure TuiState { _game = initialState " Hello there."
+                  , _quoteBox = " Hello there."
                   }
 
 -- | The cursor as I understand is used to send the information from widget back to program, think of it like dbms cursor
@@ -96,16 +99,13 @@ buildInitialState = do
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
--- | `ts^.typeBox` means get the `_typeBox` constructor from TuiState
--- | FocusRing helps to keep focus on the Named Resource. This also gives cursor to the edit box
+-- | TODO: No idea why `typebox` has space at the beginning
 drawTui :: TuiState -> [Widget Name]
 drawTui ts = [ui]
     where
-        typeBox' =E.renderEditor (str . unlines) False (ts^.typeBox)
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
-                    vBox [str (ts^.quoteBox), fill ' ', hBorder] <=>
-                     (hLimit 30 $ vLimit 5 typeBox')
+                    vBox [str (ts^.quoteBox), fill ' ', hBorder] <=> (drawText ts)
 
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
