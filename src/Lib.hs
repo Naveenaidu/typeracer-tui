@@ -25,6 +25,9 @@ import qualified Brick.Types                as T
 import qualified Brick.Main                 as M
 import qualified Graphics.Vty               as V
 
+import qualified Data.Text  as T
+
+
 import Game
 
 -- | Named resoureced
@@ -47,11 +50,16 @@ hitAttrName = attrName "Hit"
 missAttrName :: AttrName
 missAttrName = attrName "Miss"
 
+emptyAttrName :: AttrName
+emptyAttrName = attrName "Empty"
+
 -- | Draw the character, If Miss color the character with RED
 -- | str :: String -> Widget n
 drawCharacter :: Character -> Widget Name
 drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
+drawCharacter (Miss ' ') = withAttr missAttrName $ str ['_']
 drawCharacter (Miss c) = withAttr missAttrName $ str [c]
+drawCharacter (Empty c) = withAttr emptyAttrName $ str [c]
 
 drawLine :: Line -> Widget Name
 drawLine [] = emptyWidget
@@ -59,12 +67,17 @@ drawLine line = foldl1 (<+>) $ map drawCharacter line
 
 -- | Takes the state, Creates the characters and draws the line
 -- | Is there a better way to write the lenses.
-drawText :: TuiState -> Widget Name
-drawText st = padBottom (Pad 2)  (drawLine characters)
+drawInputText :: TuiState -> Widget Name
+drawInputText st = padBottom (Pad 2)  (str input')
+  where input' = T.unpack $ unInput $ (st ^. game) ^. input
+        
+
+drawQuote :: TuiState -> Widget Name
+drawQuote st =  (drawLine characters)
   where input' = (st ^. game) ^. input
         quote' = (st ^. game) ^. quote
-        characters = character quote' input' 
-        
+        characters = character quote' input'
+
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
 -- | TODO: No idea why `typebox` has space at the beginning
@@ -73,8 +86,8 @@ drawTui ts = [ui]
     where
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
-                    vBox [str (ts^.quoteBox), fill ' ', hBorder] 
-                    <=> showCursor () (Location $ cursor (ts^.game) ) (drawText ts)
+                    vBox [(drawQuote ts), fill ' ', hBorder] 
+                    <=> showCursor () (Location $ cursor (ts^.game) ) (drawInputText ts)
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
 handleChar char ts = M.continue $ ts & game %~ (applyChar char)
@@ -103,8 +116,8 @@ buildInitialState = do
 
 -- | The initial config to out APP, specifying various functions
 -- | appDraw: Turns the current app state into a list of layers of type Widget
-tuiApp :: V.Attr -> V.Attr -> App TuiState e Name
-tuiApp hitAttr missAttr =
+tuiApp :: V.Attr -> V.Attr -> V.Attr -> App TuiState e Name
+tuiApp hitAttr missAttr emptyAttr=
   App
     { appDraw = drawTui
     , appChooseCursor = showFirstCursor
@@ -115,6 +128,7 @@ tuiApp hitAttr missAttr =
                       V.defAttr
                       [ (hitAttrName, hitAttr)
                       , (missAttrName, missAttr)
+                      , (emptyAttrName, emptyAttr)
                       ]
     }
 
@@ -122,9 +136,10 @@ tuiApp hitAttr missAttr =
 tui :: IO ()
 tui = do
   initialState <- buildInitialState
-  endState <- defaultMain (tuiApp hitAttr missAttr) initialState
+  endState <- defaultMain (tuiApp hitAttr missAttr emptyAttr) initialState
   putStrLn $ show endState 
     where 
       hitAttr = fg . V.ISOColor $ 2
       missAttr = fg . V.ISOColor $ 1
+      emptyAttr = fg. V.ISOColor $ 8
 

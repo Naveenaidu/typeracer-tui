@@ -40,6 +40,7 @@ initialState t =
 data Character = 
     Hit Char
   | Miss Char
+  | Empty Char
     deriving (Show)
 
 type Line = [Character]
@@ -48,14 +49,15 @@ type Line = [Character]
 -- | quote' are the characters from Quote that we match with the input string
 -- | QUESTION: Do we really want to allow chars more than `quote` length?? 
 character :: Quote -> Input -> [Character]
-character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Miss c) remElems)
+character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Empty c) remElems)
   where lenInput = (T.length input)
         lenQuote = (T.length quote)
         quote' = T.take lenInput  quote
-        remElems  = [  T.index input i  | i <- [lenQuote+1, lenQuote+2 .. lenInput-1] ]
+        remElems  = [  T.index quote i  | i <- [lenInput, lenInput+1 .. lenQuote-1] ]
         mkChar (q,i)
           | q == i    = Hit i
-          | otherwise = Miss i
+          | q == ' ' && q /= i = Miss ' '
+          | otherwise = Miss q
 
 -- | Check if the Input at time `t` is equal to that much part of quote
 isErrorFree :: Game -> Bool
