@@ -85,5 +85,17 @@ applyBackSpaceWord = undefined
 applyWhiteSpace :: Game -> Game
 applyWhiteSpace = undefined
 
+-- | TODO: Change it when we shift the typebox to have word wrap
+cursorCol :: Input -> Int
+cursorCol  = T.length . T.takeWhile (/= '\n') . T.reverse . unInput 
+
+cursorRow :: Input -> Int
+cursorRow = T.length . T.filter (== '\n') . unInput
+
+cursor :: Game -> (Int, Int)
+cursor g = (cursorCol input', cursorRow input')
+  where input' = g^.input 
+  
+
 test :: IO ()
 test = putStrLn "Hello"
