@@ -51,17 +51,22 @@ missAttrName = attrName "Miss"
 
 -- | Draw the character, If Miss color the character with RED
 -- | str :: String -> Widget n
-drawCharacter :: Character -> Widget ()
+drawCharacter :: Character -> Widget Name
 drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
 drawCharacter (Miss c) = withAttr missAttrName $ str [c]
 
-drawLine :: Line -> Widget ()
-drawLine [] = str " "
+drawLine :: Line -> Widget Name
+drawLine [] = str ""
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
 -- | Takes the state, Creates the characters and draws the line
-drawText :: TuiState -> Widget ()
-drawText st = undefined
+-- | Is there a better way to write the lenses.
+drawText :: TuiState -> Widget Name
+drawText st = drawLine characters
+  where input' = (st ^. game) ^. input
+        quote' = (st ^. game) ^. quote
+        characters = character quote' input' 
+        
 
 -- | The main application to draw the UI
 tui :: IO ()
@@ -85,8 +90,8 @@ tuiApp =
 -- | Initial state of the APP
 buildInitialState :: IO TuiState
 buildInitialState = do
-    pure TuiState { _game = initialState "Hello"
-                  , _quoteBox = "Quote to type"
+    pure TuiState { _game = initialState "Hello there."
+                  , _quoteBox = "Hello there "
                   , _typeBox = E.editor TypeBox Nothing ""
                   }
 
@@ -105,7 +110,7 @@ drawTui ts = [ui]
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
                     vBox [str (ts^.quoteBox), fill ' ', hBorder] <=>
-                     (hLimit 30 $ vLimit 5 typeBox')
+                     ( (drawText ts))
 
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)

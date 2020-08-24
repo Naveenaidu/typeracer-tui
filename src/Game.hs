@@ -45,9 +45,10 @@ type Line = [Character]
 
 -- | Take Quote and Input String and give back the list of character
 -- | quote' are the characters from Quote that we match with the input string
+-- | FIX LOGIC, it's wrong
 character :: Quote -> Input -> [Character]
 character (Quote quote) (Input input) = map mkChar $ T.zip quote' input
-  where quote' = T.take (T.length input) quote
+  where quote' = T.take (T.length input)  quote
         mkChar (q,i)
           | q == i    = Hit i
           | otherwise = Miss i
