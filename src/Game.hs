@@ -46,7 +46,7 @@ type Line = [Character]
 
 -- | Take Quote and Input String and give back the list of character
 -- | quote' are the characters from Quote that we match with the input string
--- | FIX LOGIC, it's wrong
+-- | QUESTION: Do we really want to allow chars more than `quote` length?? 
 character :: Quote -> Input -> [Character]
 character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Miss c) remElems)
   where lenInput = (T.length input)

@@ -51,7 +51,7 @@ missAttrName = attrName "Miss"
 -- | str :: String -> Widget n
 drawCharacter :: Character -> Widget Name
 drawCharacter (Hit c)  = withAttr hitAttrName $ str [c]
-drawCharacter (Miss c) = withAttr missAttrName $ str [' ']
+drawCharacter (Miss c) = withAttr missAttrName $ str [c]
 
 drawLine :: Line -> Widget Name
 drawLine [] = emptyWidget
@@ -76,39 +76,6 @@ drawTui ts = [ui]
                     vBox [str (ts^.quoteBox), fill ' ', hBorder] 
                     <=> showCursor () (Location $ cursor (ts^.game) ) (drawText ts)
 
--- | The main application to draw the UI
-tui :: IO ()
-tui = do
-  initialState <- buildInitialState
-  endState <- defaultMain tuiApp initialState
-  putStrLn $ show endState 
-
--- | The initial config to out APP, specifying various functions
--- | appDraw: Turns the current app state into a list of layers of type Widget
-tuiApp :: App TuiState e Name
-tuiApp =
-  App
-    { appDraw = drawTui
-    , appChooseCursor = showFirstCursor
-    , appHandleEvent = handleTuiEvent
-    , appStartEvent = pure
-    , appAttrMap = const $ attrMap mempty []
-    }
-
--- | Initial state of the APP
-buildInitialState :: IO TuiState
-buildInitialState = do
-    pure TuiState { _game = initialState " Hello there."
-                  , _quoteBox = " Hello there."
-                  }
-
--- | The cursor as I understand is used to send the information from widget back to program, think of it like dbms cursor
--- appCursor :: TuiState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
--- appCursor = F.focusRingCursor (^.focusRing)
-
-
-
-
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
 handleChar char ts = M.continue $ ts & game %~ (applyChar char)
 
@@ -125,3 +92,39 @@ handleTuiEvent ts (VtyEvent ev) =
         V.EvKey (V.KChar c) [] -> handleChar c ts
 
 handleTuiEvent ts _ = M.continue ts
+
+-- | Initial state of the APP
+buildInitialState :: IO TuiState
+buildInitialState = do
+    pure TuiState { _game = initialState " Hello there. This is a big test text. Let's see"
+                  , _quoteBox = " Hello there. This is a big test text. Let's see"
+                  }
+
+
+-- | The initial config to out APP, specifying various functions
+-- | appDraw: Turns the current app state into a list of layers of type Widget
+tuiApp :: V.Attr -> V.Attr -> App TuiState e Name
+tuiApp hitAttr missAttr =
+  App
+    { appDraw = drawTui
+    , appChooseCursor = showFirstCursor
+    , appHandleEvent = handleTuiEvent
+    , appStartEvent = pure
+    , appAttrMap = const $ 
+                   attrMap 
+                      V.defAttr
+                      [ (hitAttrName, hitAttr)
+                      , (missAttrName, missAttr)
+                      ]
+    }
+
+-- | The main application to draw the UI
+tui :: IO ()
+tui = do
+  initialState <- buildInitialState
+  endState <- defaultMain (tuiApp hitAttr missAttr) initialState
+  putStrLn $ show endState 
+    where 
+      hitAttr = fg . V.ISOColor $ 2
+      missAttr = fg . V.ISOColor $ 1
+
