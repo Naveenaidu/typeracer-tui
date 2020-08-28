@@ -128,6 +128,7 @@ handleTuiEvent ts (VtyEvent ev) =
         V.EvKey V.KEsc [] -> M.halt ts
         V.EvKey (V.KChar c) [] -> handleChar c ts
         V.EvKey V.KBS [] -> M.continue $ ts & game %~ applyBackSpace
+        _ -> M.continue ts
 
 handleTuiEvent ts _ = M.continue ts
 
