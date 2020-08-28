@@ -1,11 +1,16 @@
+{-
+The code is highly motivated from 
+https://github.com/callum-oakley/gotta-go-fast/blob/master/src/GottaGoFast.hs
+-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Game  where
 
-import Data.Time  (UTCTime, diffUTCTime)
-import Lens.Micro
-import Lens.Micro.TH
-import           Data.Char  (isSpace)
+import    Data.Time       (UTCTime, diffUTCTime)
+import    Lens.Micro
+import    Lens.Micro.TH
+import    Data.Char       (isSpace)
+import    Data.Maybe
 
 import qualified Data.Text  as T
 
@@ -45,19 +50,28 @@ data Character =
 
 type Line = [Character]
 
--- | Take Quote and Input String and give back the list of character
--- | quote' are the characters from Quote that we match with the input string
--- | QUESTION: Do we really want to allow chars more than `quote` length?? 
-character :: Quote -> Input -> [Character]
-character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Empty c) remElems)
-  where lenInput = (T.length input)
-        lenQuote = (T.length quote)
-        quote' = T.take lenInput  quote
-        remElems  = [  T.index quote i  | i <- [lenInput, lenInput+1 .. lenQuote-1] ]
-        mkChar (q,i)
-          | q == i    = Hit i
-          | q == ' ' && q /= i = Miss ' '
-          | otherwise = Miss q
+startClock :: UTCTime -> Game -> Game
+startClock now game = game & (startTime .~ Just now)
+
+stopClock :: UTCTime -> Game -> Game
+stopClock now game = game & (endTime .~ Just now)
+
+hasStarted :: Game -> Bool
+hasStarted game = isJust $ game ^. startTime
+
+hasEnded :: Game -> Bool
+hasEnded game = isJust $ game ^. endTime
+
+-- | TODO: Change it when we shift the typebox to have word wrap
+cursorCol :: Input -> Int
+cursorCol  = T.length . T.takeWhile (/= '\n') . T.reverse . unInput 
+
+cursorRow :: Input -> Int
+cursorRow = T.length . T.filter (== '\n') . unInput
+
+cursor :: Game -> (Int, Int)
+cursor g = (cursorCol input', cursorRow input')
+  where input' = g^.input 
 
 -- | Check if the Input at time `t` is equal to that much part of quote
 isErrorFree :: Game -> Bool
@@ -71,15 +85,30 @@ isComplete st = quote' == input'
   where quote' = st^.quote & unQuote
         input'  = st^.input & unInput
 
--- | TODO: use appendInput instead of newInput
+-- | Take Quote and Input String and give back the list of character
+-- | quote' are the characters from Quote that we match with the input string
+character :: Quote -> Input -> [Character]
+character (Quote quote) (Input input) = (map mkChar (T.zip quote' input)) ++ (map (\c -> Empty c) remElems)
+  where lenInput = (T.length input)
+        lenQuote = (T.length quote)
+        quote' = T.take lenInput  quote
+        remElems  = [  T.index quote i  | i <- [lenInput, lenInput+1 .. lenQuote-1] ]
+        mkChar (q,i)
+          | q == i    = Hit i
+          | q == ' ' && q /= i = Miss ' '
+          | otherwise = Miss q
+
+-- | Apply a char to the Game state
+-- TODO: Instead of settings the `input` using `%~` to modify the input
 applyChar :: Char -> Game -> Game
 applyChar char st = st & (strokes +~ 1) . (input .~ newInput) . (hits +~ isErrorFree')
-  where appendInput = Input <$>  (T.cons char) . unInput
-        newInput = Input $ T.snoc (unInput (st ^. input)) char
+  where newInput = Input $ T.snoc (unInput (st ^. input)) char
         isErrorFree' = if isErrorFree st then 1 else 0
 
+-- | Delete a single char from the input string
 applyBackSpace :: Game -> Game
-applyBackSpace =  undefined
+applyBackSpace game = game & (input .~ newInput)
+  where newInput = Input $ T.reverse . T.drop 1 . T.reverse $ unInput $ game ^. input   
 
 applyBackSpaceWord :: Game -> Game
 applyBackSpaceWord = undefined
@@ -87,17 +116,19 @@ applyBackSpaceWord = undefined
 applyWhiteSpace :: Game -> Game
 applyWhiteSpace = undefined
 
--- | TODO: Change it when we shift the typebox to have word wrap
-cursorCol :: Input -> Int
-cursorCol  = T.length . T.takeWhile (/= '\n') . T.reverse . unInput 
+-- The following functions are only safe to use when both hasStarted and
+-- hasEnded hold.
+seconds :: Game -> Rational
+seconds game = toRational $ diffUTCTime (fromJust end) (fromJust start)
+  where start = game ^. startTime
+        end   = game ^. endTime
 
-cursorRow :: Input -> Int
-cursorRow = T.length . T.filter (== '\n') . unInput
+countChars :: Game -> Int
+countChars game = T.length $ unQuote (game^.quote)
 
-cursor :: Game -> (Int, Int)
-cursor g = (cursorCol input', cursorRow input')
-  where input' = g^.input 
-  
+wpm :: Game -> Rational
+wpm game = fromIntegral (countChars game) / (5 * seconds game / 60) 
 
-test :: IO ()
-test = putStrLn "Hello"
+accuracy :: Game -> Rational
+accuracy game = fromIntegral (game ^. hits) / fromIntegral (game^.strokes)
+
