@@ -1,7 +1,12 @@
+{-
+The code is highly motivated from 
+https://github.com/callum-oakley/gotta-go-fast/blob/master/src/UI.hs
+-}
+
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Lib
+module UI
     ( tui
     ) where
 
@@ -24,11 +29,14 @@ import qualified Brick.Widgets.Center       as C
 import qualified Brick.Types                as T
 import qualified Brick.Main                 as M
 import qualified Graphics.Vty               as V
+import qualified Data.Text                  as T
 
-import qualified Data.Text  as T
-
-
-import Game
+import           Control.Monad.IO.Class (liftIO)
+import           Data.Char              (isSpace)
+import           Data.Maybe             (fromMaybe)
+import           Data.Time              (getCurrentTime)
+import           Data.Word              (Word8)
+import           Game
 
 -- | Named resoureced
 type Name = () 
@@ -66,7 +74,8 @@ drawLine [] = emptyWidget
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
 -- | Takes the state, Creates the characters and draws the line
--- | Is there a better way to write the lenses.
+-- Is there a better way to write the lenses.
+-- TODO: Word Wrap for text field
 drawInputText :: TuiState -> Widget Name
 drawInputText st = padBottom (Pad 2)  (str input')
   where input' = T.unpack $ unInput $ (st ^. game) ^. input
@@ -78,19 +87,36 @@ drawQuote st =  (drawLine characters)
         quote' = (st ^. game) ^. quote
         characters = character quote' input'
 
+drawResult :: TuiState -> Widget Name
+drawResult ts = str $ 
+  (show . round $ wpm $ ts^.game) ++ " words per minute is " ++ 
+  (show . round $ accuracy (ts^.game) * 100) ++ "% accuracy"
+
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
 -- | TODO: No idea why `typebox` has space at the beginning
 drawTui :: TuiState -> [Widget Name]
-drawTui ts = [ui]
+drawTui ts 
+  | gameEnded = pure. C.center . padAll 1 $ drawResult ts
+  | otherwise = [ui]
     where
+        gameEnded = hasEnded (ts^.game)
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
                     vBox [(drawQuote ts), fill ' ', hBorder] 
                     <=> showCursor () (Location $ cursor (ts^.game) ) (drawInputText ts)
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
-handleChar char ts = M.continue $ ts & game %~ (applyChar char)
+handleChar char ts 
+  | isComplete game' = do
+      now <- liftIO getCurrentTime
+      M.continue $ ts & game %~ (stopClock now)
+  | hasStarted game' = M.continue $ ts & game %~ (applyChar char)
+  | otherwise   = do
+      now <- liftIO getCurrentTime
+      M.continue $ ts & game %~ (startClock now)
+  where game' = ts^.game
+   
 
 -- | Handle the events. This is where Keyboard events will be captured.
 -- | Continue takes a updated state and applies it
@@ -100,9 +126,8 @@ handleTuiEvent :: TuiState -> BrickEvent Name e -> EventM Name (Next TuiState)
 handleTuiEvent ts (VtyEvent ev) = 
     case ev of
         V.EvKey V.KEsc [] -> M.halt ts
-        -- V.EvKey (V.KChar '\t') [] -> M.continue $ ts & focusRing %~ F.focusNext
-        -- V.EvKey V.KBackTab [] -> M.continue $ ts & focusRing %~ F.focusPrev
         V.EvKey (V.KChar c) [] -> handleChar c ts
+        V.EvKey V.KBS [] -> M.continue $ ts & game %~ applyBackSpace
 
 handleTuiEvent ts _ = M.continue ts
 
