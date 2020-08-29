@@ -105,13 +105,16 @@ drawTui ts
                     vBox [(drawQuote ts), fill ' ', hBorder] 
                     <=> showCursor () (Location $ cursor (ts^.game)) (vBox [(drawInputText ts), fill ' '])
 
+-- | Handle the characters from Keyboard
+-- | After applying each char check if the game has ended, If yes then stop clock else continue
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
-handleChar char ts 
-  | isComplete game' = do
+handleChar char ts = 
+  if isComplete game' 
+    then do
       now <- liftIO getCurrentTime
       M.continue $ ts & game %~ (stopClock now)
-  | hasStarted game' = M.continue $ ts & game %~ (applyChar char)
-  where game' = ts^.game
+    else M.continue $ ts & game %~ (applyChar char)
+  where game' = applyChar char (ts^.game)
    
 
 -- | Handle the events. This is where Keyboard events will be captured.
