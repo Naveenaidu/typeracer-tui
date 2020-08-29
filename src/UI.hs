@@ -46,7 +46,6 @@ type Name = ()
 -- | QUESTION: Do we really need a EDIT box? ?
 data TuiState =
     TuiState {  _game       :: Game 
-             ,  _quoteBox   :: String
              } deriving (Show)
 
 makeLenses ''TuiState
@@ -77,8 +76,8 @@ drawLine line = foldl1 (<+>) $ map drawCharacter line
 -- Is there a better way to write the lenses.
 -- TODO: Word Wrap for text field
 drawInputText :: TuiState -> Widget Name
-drawInputText st = padBottom (Pad 2)  (str input')
-  where input' = T.unpack $ unInput $ (st ^. game) ^. input
+drawInputText st = (txt input')
+  where input' = unInput $ (st ^. game) ^. input
         
 
 drawQuote :: TuiState -> Widget Name
@@ -104,7 +103,7 @@ drawTui ts
         ui = withBorderStyle unicode $
                 borderWithLabel (str "TypeRacer") $ 
                     vBox [(drawQuote ts), fill ' ', hBorder] 
-                    <=> showCursor () (Location $ cursor (ts^.game) ) (drawInputText ts)
+                    <=> showCursor () (Location $ cursor (ts^.game)) (vBox [(drawInputText ts), fill ' '])
 
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
 handleChar char ts 
@@ -135,8 +134,7 @@ handleTuiEvent ts _ = M.continue ts
 -- | Initial state of the APP
 buildInitialState :: IO TuiState
 buildInitialState = do
-    pure TuiState { _game = initialState " Hello there. This is a big test text. Let's see"
-                  , _quoteBox = " Hello there. This is a big test text. Let's see"
+    pure TuiState { _game = initialState " Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects."
                   }
 
 

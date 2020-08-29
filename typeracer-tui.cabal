@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eb28c4d500b48342a6e11960e2afac02ec4d7a7a85b7849fe383baa50f7d8782
+-- hash: d5305a8d76be5ab91a8bdadcd71172c02ec5182c464cb27325b5bf626215ddb1
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -28,7 +28,6 @@ source-repository head
 library
   exposed-modules:
       Game
-      Lib
       UI
   other-modules:
       Paths_typeracer_tui
