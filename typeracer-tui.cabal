@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d5305a8d76be5ab91a8bdadcd71172c02ec5182c464cb27325b5bf626215ddb1
+-- hash: 3b3ee1ce8ac7d9dab9adb578d547d9bfdce15413adb3944363c7ed7cbc8efa86
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -39,9 +39,11 @@ library
     , lens
     , microlens
     , microlens-th
+    , split
     , text
     , time
     , vty
+    , word-wrap
   default-language: Haskell2010
 
 executable typeracer-tui-exe
@@ -57,10 +59,12 @@ executable typeracer-tui-exe
     , lens
     , microlens
     , microlens-th
+    , split
     , text
     , time
     , typeracer-tui
     , vty
+    , word-wrap
   default-language: Haskell2010
 
 test-suite typeracer-tui-test
@@ -77,8 +81,10 @@ test-suite typeracer-tui-test
     , lens
     , microlens
     , microlens-th
+    , split
     , text
     , time
     , typeracer-tui
     , vty
+    , word-wrap
   default-language: Haskell2010

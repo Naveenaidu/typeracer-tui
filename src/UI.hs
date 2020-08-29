@@ -36,6 +36,8 @@ import           Data.Char              (isSpace)
 import           Data.Maybe             (fromMaybe)
 import           Data.Time              (getCurrentTime)
 import           Data.Word              (Word8)
+import           Text.Wrap              (WrapSettings (..), wrapText, wrapTextToLines)
+import           Data.List.Split        (chunksOf)
 import           Game
 
 -- | Named resoureced
@@ -72,20 +74,24 @@ drawLine :: Line -> Widget Name
 drawLine [] = emptyWidget
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
+-- | Wrap Quote at 80 characters.
+-- | As soon as you reach 80 char add a vertical box below it and let the text be written there.
+-- TODO: Any better version of wrapping? Cases are present where a long word is divided into two parts. How to fix it
+drawQuote :: TuiState -> Widget Name
+drawQuote st =  C.center. padAll 1 $ foldl (<=>) emptyWidget $  map drawLine lines
+  where lines = chunksOf 80 characters
+        characters = character quote' input'
+        quote' = (st ^. game) ^. quote
+        input' = (st ^. game) ^. input
+
 -- | Takes the state, Creates the characters and draws the line
 -- Is there a better way to write the lenses.
--- TODO: Word Wrap for text field
+-- TODO: Fix Cursor, Cursor position should change after 80 chars
 drawInputText :: TuiState -> Widget Name
-drawInputText st = (txt input')
+drawInputText st = foldl (<=>) emptyWidget $ map str wrappedInput
   where input' = unInput $ (st ^. game) ^. input
+        wrappedInput = chunksOf 80 (T.unpack input')
         
-
-drawQuote :: TuiState -> Widget Name
-drawQuote st =  (drawLine characters)
-  where input' = (st ^. game) ^. input
-        quote' = (st ^. game) ^. quote
-        characters = character quote' input'
-
 drawResult :: TuiState -> Widget Name
 drawResult ts = str $ 
   (show . round $ wpm $ ts^.game) ++ " words per minute is " ++ 
@@ -93,7 +99,6 @@ drawResult ts = str $
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
--- | TODO: No idea why `typebox` has space at the beginning
 drawTui :: TuiState -> [Widget Name]
 drawTui ts 
   | gameEnded = pure. C.center . padAll 1 $ drawResult ts
@@ -133,15 +138,14 @@ handleTuiEvent ts (VtyEvent (V.EvKey key []))
         V.KEsc    -> M.halt ts
         V.KBS     -> M.continue $ ts & game %~ applyBackSpace
         _         -> M.continue ts
-
--- handleTuiEvent ts _ = M.continue ts
+handleTuiEvent ts _ = M.continue ts
 
 -- | Initial state of the APP
 -- | Start the clock when the game starts
 -- | Remove: Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects.
 buildInitialState :: IO TuiState
 buildInitialState = do
-    let quoteText = " Hello there. This is a big test text."
+    let quoteText = "Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects."
     let gameInitialState = initialState quoteText
     now <- liftIO getCurrentTime
     let game' =  startClock now gameInitialState
@@ -177,3 +181,8 @@ tui = do
       missAttr = fg . V.ISOColor $ 1
       emptyAttr = fg. V.ISOColor $ 8
 
+-- Functions for wrapping text
+wrapSettings = WrapSettings {preserveIndentation = True, breakLongWords = True}
+
+wrap :: Int -> String -> String
+wrap width  = T.unpack . wrapText wrapSettings width . T.pack
