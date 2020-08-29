@@ -111,9 +111,6 @@ handleChar char ts
       now <- liftIO getCurrentTime
       M.continue $ ts & game %~ (stopClock now)
   | hasStarted game' = M.continue $ ts & game %~ (applyChar char)
-  | otherwise   = do
-      now <- liftIO getCurrentTime
-      M.continue $ ts & game %~ (startClock now)
   where game' = ts^.game
    
 
@@ -122,20 +119,30 @@ handleChar char ts
 -- | `%~` modifies the value of a field. Like a setter
 -- | `&` is the reverse of `$` ie. You give the argument first and then the function. Eg: num & add == add $ num
 handleTuiEvent :: TuiState -> BrickEvent Name e -> EventM Name (Next TuiState)
-handleTuiEvent ts (VtyEvent ev) = 
-    case ev of
-        V.EvKey V.KEsc [] -> M.halt ts
-        V.EvKey (V.KChar c) [] -> handleChar c ts
-        V.EvKey V.KBS [] -> M.continue $ ts & game %~ applyBackSpace
-        _ -> M.continue ts
+handleTuiEvent ts (VtyEvent (V.EvKey key []))
+  | hasEnded (ts^.game) = 
+      case key of
+        V.KEnter -> M.halt ts
+        _        -> M.continue ts
+  | otherwise = 
+      case key of
+        V.KChar c -> handleChar c ts
+        V.KEsc    -> M.halt ts
+        V.KBS     -> M.continue $ ts & game %~ applyBackSpace
+        _         -> M.continue ts
 
-handleTuiEvent ts _ = M.continue ts
+-- handleTuiEvent ts _ = M.continue ts
 
 -- | Initial state of the APP
+-- | Start the clock when the game starts
+-- | Remove: Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects.
 buildInitialState :: IO TuiState
 buildInitialState = do
-    pure TuiState { _game = initialState " Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects."
-                  }
+    let quoteText = " Hello there. This is a big test text."
+    let gameInitialState = initialState quoteText
+    now <- liftIO getCurrentTime
+    let game' =  startClock now gameInitialState
+    pure TuiState { _game = game'}
 
 
 -- | The initial config to out APP, specifying various functions

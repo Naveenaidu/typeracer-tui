@@ -34,7 +34,7 @@ initialState :: String -> Game
 initialState t =
   Game
     { _quote = Quote (T.pack t)
-    , _input = Input (T.pack "")
+    , _input = Input (T.pack " ")
     , _startTime = Nothing
     , _endTime = Nothing
     , _strokes = 0
