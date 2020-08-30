@@ -26,6 +26,7 @@ data Game = Game
   , _endTime   :: Maybe UTCTime
   , _hits      :: Int 
   , _strokes   :: Int
+  , _wrapWidth :: Int
   } deriving (Show)
 
 makeLenses ''Game
@@ -34,11 +35,12 @@ initialState :: String -> Game
 initialState t =
   Game
     { _quote = Quote (T.pack t)
-    , _input = Input (T.pack " ")
+    , _input = Input (T.pack "")
     , _startTime = Nothing
     , _endTime = Nothing
     , _strokes = 0
     , _hits = 0
+    , _wrapWidth = 80
     }
 
 -- | The character can either be hit correctly or missed
@@ -62,16 +64,25 @@ hasStarted game = isJust $ game ^. startTime
 hasEnded :: Game -> Bool
 hasEnded game = isJust $ game ^. endTime
 
--- | TODO: Change it when we shift the typebox to have word wrap
-cursorCol :: Input -> Int
-cursorCol  = T.length . T.takeWhile (/= '\n') . T.reverse . unInput 
 
-cursorRow :: Input -> Int
-cursorRow = T.length . T.filter (== '\n') . unInput
+-- | Cursor Column
+-- | Divide the charcters in matrix n * 80, that'll tell us the position
+cursorCol :: Input -> Int -> Int
+cursorCol input wrapWidth
+  | lenInput `mod` wrapWidth == 0 = wrapWidth
+  | otherwise = lenInput `mod` wrapWidth
+  where input' = unInput input
+        lenInput = T.length input'
+
+-- | Cursor Row
+-- | Each line consits of 80 chars. Divide the chars into chunks of 80 and then get the length of list
+cursorRow :: Input -> Int -> Int
+cursorRow  input' wrapWidth = length (T.chunksOf wrapWidth  $ unInput input') -  1
 
 cursor :: Game -> (Int, Int)
-cursor g = (cursorCol input', cursorRow input')
-  where input' = g^.input 
+cursor g = (cursorCol input' wrapWidth', cursorRow input' wrapWidth')
+  where input' = g^.input
+        wrapWidth' = g^.wrapWidth 
 
 -- | Check if the Input at time `t` is equal to that much part of quote
 isErrorFree :: Game -> Bool

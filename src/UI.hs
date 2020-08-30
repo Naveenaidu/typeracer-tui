@@ -36,6 +36,8 @@ import           Data.Char              (isSpace)
 import           Data.Maybe             (fromMaybe)
 import           Data.Time              (getCurrentTime)
 import           Data.Word              (Word8)
+import           Text.Wrap              (WrapSettings (..), wrapText, wrapTextToLines)
+import           Data.List.Split        (chunksOf)
 import           Game
 
 -- | Named resoureced
@@ -43,7 +45,6 @@ type Name = ()
 
 -- | The state of the game
 -- | We'll make a lens out of it, so that we have getters and setter
--- | QUESTION: Do we really need a EDIT box? ?
 data TuiState =
     TuiState {  _game       :: Game 
              } deriving (Show)
@@ -72,20 +73,26 @@ drawLine :: Line -> Widget Name
 drawLine [] = emptyWidget
 drawLine line = foldl1 (<+>) $ map drawCharacter line 
 
+-- | Wrap Quote at 80 characters.
+-- | As soon as you reach 80 char add a vertical box below it and let the text be written there.
+-- TODO: Any better version of wrapping? Cases are present where a long word is divided into two parts. How to fix it
+drawQuote :: TuiState -> Widget Name
+drawQuote ts =  C.center. padAll 1 $ foldl (<=>) emptyWidget $  map drawLine lines
+  where lines = chunksOf wrapWidth' characters
+        characters = character quote' input'
+        quote' = (ts ^. game) ^. quote
+        input' = (ts ^. game) ^. input
+        wrapWidth' =  (ts ^. game) ^. wrapWidth
+
 -- | Takes the state, Creates the characters and draws the line
 -- Is there a better way to write the lenses.
--- TODO: Word Wrap for text field
 drawInputText :: TuiState -> Widget Name
-drawInputText st = (txt input')
-  where input' = unInput $ (st ^. game) ^. input
+drawInputText ts = foldl (<=>) emptyWidget $ map txt wrappedInput
+  where wrappedInput = T.chunksOf wrapWidth' input'
+        input'       = unInput $ (ts ^. game) ^. input
+        wrapWidth' =  (ts ^. game) ^. wrapWidth
         
-
-drawQuote :: TuiState -> Widget Name
-drawQuote st =  (drawLine characters)
-  where input' = (st ^. game) ^. input
-        quote' = (st ^. game) ^. quote
-        characters = character quote' input'
-
+        
 drawResult :: TuiState -> Widget Name
 drawResult ts = str $ 
   (show . round $ wpm $ ts^.game) ++ " words per minute is " ++ 
@@ -93,7 +100,6 @@ drawResult ts = str $
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
--- | TODO: No idea why `typebox` has space at the beginning
 drawTui :: TuiState -> [Widget Name]
 drawTui ts 
   | gameEnded = pure. C.center . padAll 1 $ drawResult ts
@@ -105,13 +111,16 @@ drawTui ts
                     vBox [(drawQuote ts), fill ' ', hBorder] 
                     <=> showCursor () (Location $ cursor (ts^.game)) (vBox [(drawInputText ts), fill ' '])
 
+-- | Handle the characters from Keyboard
+-- | After applying each char check if the game has ended, If yes then stop clock else continue
 handleChar :: Char -> TuiState -> EventM Name (Next TuiState)
-handleChar char ts 
-  | isComplete game' = do
+handleChar char ts = 
+  if isComplete game' 
+    then do
       now <- liftIO getCurrentTime
       M.continue $ ts & game %~ (stopClock now)
-  | hasStarted game' = M.continue $ ts & game %~ (applyChar char)
-  where game' = ts^.game
+    else M.continue $ ts & game %~ (applyChar char)
+  where game' = applyChar char (ts^.game)
    
 
 -- | Handle the events. This is where Keyboard events will be captured.
@@ -130,15 +139,14 @@ handleTuiEvent ts (VtyEvent (V.EvKey key []))
         V.KEsc    -> M.halt ts
         V.KBS     -> M.continue $ ts & game %~ applyBackSpace
         _         -> M.continue ts
-
--- handleTuiEvent ts _ = M.continue ts
+handleTuiEvent ts _ = M.continue ts
 
 -- | Initial state of the APP
 -- | Start the clock when the game starts
 -- | Remove: Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects.
 buildInitialState :: IO TuiState
 buildInitialState = do
-    let quoteText = " Hello there. This is a big test text."
+    let quoteText = "Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects."
     let gameInitialState = initialState quoteText
     now <- liftIO getCurrentTime
     let game' =  startClock now gameInitialState
@@ -173,4 +181,3 @@ tui = do
       hitAttr = fg . V.ISOColor $ 2
       missAttr = fg . V.ISOColor $ 1
       emptyAttr = fg. V.ISOColor $ 8
-

@@ -28,6 +28,8 @@ dependencies:
 - microlens-th
 - time
 - text
+- word-wrap
+- split
 
 library:
   source-dirs: src
