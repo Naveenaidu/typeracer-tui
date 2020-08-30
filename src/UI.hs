@@ -7,7 +7,7 @@ https://github.com/callum-oakley/gotta-go-fast/blob/master/src/UI.hs
 {-# LANGUAGE OverloadedStrings #-}
 
 module UI
-    ( tui
+    ( run
     ) where
 
 import Lens.Micro
@@ -143,11 +143,9 @@ handleTuiEvent ts _ = M.continue ts
 
 -- | Initial state of the APP
 -- | Start the clock when the game starts
--- | Remove: Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects.
-buildInitialState :: IO TuiState
-buildInitialState = do
-    let quoteText = "Hello there. This is a big test text. Let's see what happens when the text goes very big. I am a Mistborn and I am also a Soulcaster and I can animate objects."
-    let gameInitialState = initialState quoteText
+buildInitialState :: String -> IO TuiState
+buildInitialState quote' = do
+    let gameInitialState = initialState quote'
     now <- liftIO getCurrentTime
     let game' =  startClock now gameInitialState
     pure TuiState { _game = game'}
@@ -172,12 +170,12 @@ tuiApp hitAttr missAttr emptyAttr=
     }
 
 -- | The main application to draw the UI
-tui :: IO ()
-tui = do
-  initialState <- buildInitialState
+run :: Maybe Word8 -> Maybe Word8 -> Maybe Word8 -> String ->  IO ()
+run fgEmptyCode fgErrorCode fgCorrectCode quote'= do
+  initialState <- buildInitialState quote'
   endState <- defaultMain (tuiApp hitAttr missAttr emptyAttr) initialState
   putStrLn $ show endState 
     where 
-      hitAttr = fg . V.ISOColor $ 2
-      missAttr = fg . V.ISOColor $ 1
-      emptyAttr = fg. V.ISOColor $ 8
+      hitAttr   = fg . V.ISOColor $ fromMaybe 2 fgCorrectCode
+      missAttr  = fg . V.ISOColor $ fromMaybe 1 fgErrorCode
+      emptyAttr = fg . V.ISOColor  $ fromMaybe 8 fgEmptyCode
