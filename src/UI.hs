@@ -91,12 +91,15 @@ drawInputText ts = foldl (<=>) emptyWidget $ map txt wrappedInput
   where wrappedInput = T.chunksOf wrapWidth' input'
         input'       = unInput $ (ts ^. game) ^. input
         wrapWidth' =  (ts ^. game) ^. wrapWidth
-        
+
+drawInput :: TuiState -> Widget Name
+drawInput ts = showCursor () (Location $ cursor (ts^.game)) (drawInputText ts) 
         
 drawResult :: TuiState -> Widget Name
 drawResult ts = str $ 
-  (show . round $ wpm $ ts^.game) ++ " words per minute is " ++ 
-  (show . round $ accuracy (ts^.game) * 100) ++ "% accuracy"
+  (show . round $ wpm $ ts^.game) ++ " words per minute with " ++ 
+  (show . round $ accuracy (ts^.game) * 100) ++ "% accuracy" ++
+  "\n\n" ++ "Press Enter to Exit"
 
 -- | Change TuiState to drawable Widgets. This does the actual drawing
 -- | `<=>` is a sugar for Vertical box Layout. Put widgets one above another
@@ -106,10 +109,14 @@ drawTui ts
   | otherwise = [ui]
     where
         gameEnded = hasEnded (ts^.game)
-        ui = withBorderStyle unicode $
-                borderWithLabel (str "TypeRacer") $ 
-                    vBox [(drawQuote ts), fill ' ', hBorder] 
-                    <=> showCursor () (Location $ cursor (ts^.game)) (vBox [(drawInputText ts), fill ' '])
+        ui =    joinBorders $
+                C.center $
+                withBorderStyle unicodeRounded $
+                borderWithLabel (str "TypeRacer") $
+                hLimit 90 $ 
+                vLimit 15 $
+                vBox [(drawQuote ts), hBorder] <=> 
+                drawInput ts
 
 -- | Handle the characters from Keyboard
 -- | After applying each char check if the game has ended, If yes then stop clock else continue
