@@ -62,12 +62,21 @@ hasStarted game = isJust $ game ^. startTime
 hasEnded :: Game -> Bool
 hasEnded game = isJust $ game ^. endTime
 
--- | TODO: Change it when we shift the typebox to have word wrap
-cursorCol :: Input -> Int
-cursorCol  = T.length . T.takeWhile (/= '\n') . T.reverse . unInput 
 
+-- | Cursor Column
+-- | Divide the charcters in matrix n * 80, that'll tell us the position
+cursorCol :: Input -> Int
+cursorCol input 
+  | lenInput `mod` 80 == 0 = 80
+  | otherwise = lenInput `mod` 80
+  where input' = unInput input
+        lenInput = T.length input'
+
+
+-- | Cursor Row
+-- | Each line consits of 80 chars. Divide the chars into chunks of 80 and then get the length of list
 cursorRow :: Input -> Int
-cursorRow = T.length . T.filter (== '\n') . unInput
+cursorRow  input' = length (T.chunksOf 80  $ unInput input') -  1
 
 cursor :: Game -> (Int, Int)
 cursor g = (cursorCol input', cursorRow input')
