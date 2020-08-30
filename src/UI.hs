@@ -45,7 +45,6 @@ type Name = ()
 
 -- | The state of the game
 -- | We'll make a lens out of it, so that we have getters and setter
--- | QUESTION: Do we really need a EDIT box? ?
 data TuiState =
     TuiState {  _game       :: Game 
              } deriving (Show)
@@ -78,19 +77,21 @@ drawLine line = foldl1 (<+>) $ map drawCharacter line
 -- | As soon as you reach 80 char add a vertical box below it and let the text be written there.
 -- TODO: Any better version of wrapping? Cases are present where a long word is divided into two parts. How to fix it
 drawQuote :: TuiState -> Widget Name
-drawQuote st =  C.center. padAll 1 $ foldl (<=>) emptyWidget $  map drawLine lines
-  where lines = chunksOf 80 characters
+drawQuote ts =  C.center. padAll 1 $ foldl (<=>) emptyWidget $  map drawLine lines
+  where lines = chunksOf wrapWidth' characters
         characters = character quote' input'
-        quote' = (st ^. game) ^. quote
-        input' = (st ^. game) ^. input
+        quote' = (ts ^. game) ^. quote
+        input' = (ts ^. game) ^. input
+        wrapWidth' =  (ts ^. game) ^. wrapWidth
 
 -- | Takes the state, Creates the characters and draws the line
 -- Is there a better way to write the lenses.
--- TODO: Fix Cursor, Cursor position should change after 80 chars
 drawInputText :: TuiState -> Widget Name
-drawInputText st = foldl (<=>) emptyWidget $ map str wrappedInput
-  where input' = unInput $ (st ^. game) ^. input
-        wrappedInput = chunksOf 80 (T.unpack input')
+drawInputText ts = foldl (<=>) emptyWidget $ map txt wrappedInput
+  where wrappedInput = T.chunksOf wrapWidth' input'
+        input'       = unInput $ (ts ^. game) ^. input
+        wrapWidth' =  (ts ^. game) ^. wrapWidth
+        
         
 drawResult :: TuiState -> Widget Name
 drawResult ts = str $ 
@@ -180,9 +181,3 @@ tui = do
       hitAttr = fg . V.ISOColor $ 2
       missAttr = fg . V.ISOColor $ 1
       emptyAttr = fg. V.ISOColor $ 8
-
--- Functions for wrapping text
-wrapSettings = WrapSettings {preserveIndentation = True, breakLongWords = True}
-
-wrap :: Int -> String -> String
-wrap width  = T.unpack . wrapText wrapSettings width . T.pack

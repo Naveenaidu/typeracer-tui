@@ -26,6 +26,7 @@ data Game = Game
   , _endTime   :: Maybe UTCTime
   , _hits      :: Int 
   , _strokes   :: Int
+  , _wrapWidth :: Int
   } deriving (Show)
 
 makeLenses ''Game
@@ -39,6 +40,7 @@ initialState t =
     , _endTime = Nothing
     , _strokes = 0
     , _hits = 0
+    , _wrapWidth = 80
     }
 
 -- | The character can either be hit correctly or missed
@@ -65,22 +67,22 @@ hasEnded game = isJust $ game ^. endTime
 
 -- | Cursor Column
 -- | Divide the charcters in matrix n * 80, that'll tell us the position
-cursorCol :: Input -> Int
-cursorCol input 
-  | lenInput `mod` 80 == 0 = 80
-  | otherwise = lenInput `mod` 80
+cursorCol :: Input -> Int -> Int
+cursorCol input wrapWidth
+  | lenInput `mod` wrapWidth == 0 = wrapWidth
+  | otherwise = lenInput `mod` wrapWidth
   where input' = unInput input
         lenInput = T.length input'
 
-
 -- | Cursor Row
 -- | Each line consits of 80 chars. Divide the chars into chunks of 80 and then get the length of list
-cursorRow :: Input -> Int
-cursorRow  input' = length (T.chunksOf 80  $ unInput input') -  1
+cursorRow :: Input -> Int -> Int
+cursorRow  input' wrapWidth = length (T.chunksOf wrapWidth  $ unInput input') -  1
 
 cursor :: Game -> (Int, Int)
-cursor g = (cursorCol input', cursorRow input')
-  where input' = g^.input 
+cursor g = (cursorCol input' wrapWidth', cursorRow input' wrapWidth')
+  where input' = g^.input
+        wrapWidth' = g^.wrapWidth 
 
 -- | Check if the Input at time `t` is equal to that much part of quote
 isErrorFree :: Game -> Bool
