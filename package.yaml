@@ -30,6 +30,9 @@ dependencies:
 - text
 - word-wrap
 - split
+- cmdargs
+- file-embed
+- random
 
 library:
   source-dirs: src

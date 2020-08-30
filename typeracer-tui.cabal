@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3b3ee1ce8ac7d9dab9adb578d547d9bfdce15413adb3944363c7ed7cbc8efa86
+-- hash: 7b83a5e239cf61da19bed43312241549e51134eba99e13c919f6f500e3b8ea6c
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -36,9 +36,12 @@ library
   build-depends:
       base >=4.7 && <5
     , brick
+    , cmdargs
+    , file-embed
     , lens
     , microlens
     , microlens-th
+    , random
     , split
     , text
     , time
@@ -56,9 +59,12 @@ executable typeracer-tui-exe
   build-depends:
       base >=4.7 && <5
     , brick
+    , cmdargs
+    , file-embed
     , lens
     , microlens
     , microlens-th
+    , random
     , split
     , text
     , time
@@ -78,9 +84,12 @@ test-suite typeracer-tui-test
   build-depends:
       base >=4.7 && <5
     , brick
+    , cmdargs
+    , file-embed
     , lens
     , microlens
     , microlens-th
+    , random
     , split
     , text
     , time
