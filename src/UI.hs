@@ -176,6 +176,8 @@ run fgEmptyCode fgErrorCode fgCorrectCode quote'= do
   endState <- defaultMain (tuiApp hitAttr missAttr emptyAttr) initialState
   putStrLn $ show endState 
     where 
-      hitAttr   = fg . V.ISOColor $ fromMaybe 2 fgCorrectCode
-      missAttr  = fg . V.ISOColor $ fromMaybe 1 fgErrorCode
-      emptyAttr = fg . V.ISOColor  $ fromMaybe 8 fgEmptyCode
+      hitAttr     = fg . V.ISOColor $ fromMaybe 2 fgCorrectCode
+      emptyAttr   = fg . V.ISOColor  $ fromMaybe 8 fgEmptyCode
+      missAttr    = on missAttrFG missAttrBG
+      missAttrFG  = V.ISOColor $ fromMaybe 1 fgErrorCode
+      missAttrBG  = V.ISOColor $ 7
