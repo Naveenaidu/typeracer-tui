@@ -33,6 +33,8 @@ dependencies:
 - cmdargs
 - file-embed
 - random
+- containers
+- stm
 
 library:
   source-dirs: src

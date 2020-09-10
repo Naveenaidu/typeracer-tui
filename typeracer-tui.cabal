@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7b83a5e239cf61da19bed43312241549e51134eba99e13c919f6f500e3b8ea6c
+-- hash: 0680ada5a583ffa3713698804441ee740f013de7edfb559bac72ad7d9898f973
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       Game
+      Server.Types
       UI
   other-modules:
       Paths_typeracer_tui
@@ -37,12 +38,14 @@ library
       base >=4.7 && <5
     , brick
     , cmdargs
+    , containers
     , file-embed
     , lens
     , microlens
     , microlens-th
     , random
     , split
+    , stm
     , text
     , time
     , vty
@@ -60,12 +63,14 @@ executable typeracer-tui-exe
       base >=4.7 && <5
     , brick
     , cmdargs
+    , containers
     , file-embed
     , lens
     , microlens
     , microlens-th
     , random
     , split
+    , stm
     , text
     , time
     , typeracer-tui
@@ -85,12 +90,14 @@ test-suite typeracer-tui-test
       base >=4.7 && <5
     , brick
     , cmdargs
+    , containers
     , file-embed
     , lens
     , microlens
     , microlens-th
     , random
     , split
+    , stm
     , text
     , time
     , typeracer-tui
