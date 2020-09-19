@@ -12,7 +12,7 @@ parseCommand command = case words command of
   -- "LOGIN" : userName         -> Just $ Login (unwords userName)
 --   ["QUIT"]                   -> Just Quit
   "CREATEROOM" : userName : maxUsers  -> Just $ CreateRoom userName (read (unwords maxUsers) :: Int)
-  -- "JOIN" : roomName          -> Just $ Join (unwords roomName)
+  "JOINROOM" : roomName : userName    -> Just $ JoinRoom (roomName) (unwords userName)
 --   "LEAVE" : roomName         -> Just $ Leave (unwords roomName)
 --   "NAMES" : roomName         -> Just $ Names (unwords roomName)
   _                          -> Nothing
@@ -20,4 +20,7 @@ parseCommand command = case words command of
 --     createRoomMsg = "CREATEROOM" : userName : maxUsers
 
 formatMessage :: Message -> String
+formatMessage (NameInUse name) = printf "NAME IN USE %s" name 
+formatMessage (RoomNameInUse name) = printf "ROOM NAME IN USE %s" name 
 formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name
+formatMessage (JoinedRoom roomName userName) = printf "%s JOINED ROOM %s" userName roomName

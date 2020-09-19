@@ -1,7 +1,12 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Server.Server where
 
-
 import Control.Concurrent
+import Control.Concurrent.STM.TVar
+import Control.Monad
+import System.Random
+
 import Control.Exception  hiding (handle)
 import Control.Monad      (forever, join, void)
 import Network.Socket     ( AddrInfo (..), AddrInfoFlag(..), SocketType(..)
@@ -12,6 +17,7 @@ import System.IO          (hClose, hSetNewlineMode, hSetBuffering, BufferMode(..
                            IOMode(..), universalNewlineMode, hGetLine, Handle, stdout)
 import System.Timeout     (timeout)
 import Text.Printf        (printf)
+
 
 import qualified Data.Map.Strict as Map
 
@@ -75,10 +81,83 @@ connectClient server handle = do
 
       readCommand = do
         command <- timeout waitDelayMicros . fmap parseCommand $hGetLine handle
-        printf "Command read\n"
+        printf "Command read\n" 
+        
         case command of
           Nothing -> printf "Client login timed out \n" >> return ()
-          Just (Just (CreateRoom userName maxUsers)) -> do
-            printToHandle handle . formatMessage $ RoomCreated userName
+          Just (Just (command')) -> do
+            void $ forkIO (procClientCommand server handle command') 
             readCommand
           _ -> readCommand
+
+-- Process the command received by client
+procClientCommand :: Server -> Handle -> Message -> IO ()
+procClientCommand server handle command = do
+  case command of
+    (CreateRoom userName maxUsers) -> createRoom server handle userName maxUsers
+    (JoinRoom roomName userName)   -> undefined
+
+checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
+checkAddClient Server{..} handle userName = do
+  -- Make a new user
+  let user = User userName
+
+  -- Add the User to the Server Map
+  modifyMVar serverUsers $ \clientMap ->
+    if Map.member user clientMap
+      then return (clientMap, Nothing)
+      else do
+        client <- newClient user handle
+        printf "New user connected: %s\n" userName
+        return (Map.insert user client clientMap, Just client)
+
+-- Check and Map Client to the Private Room
+checkAddClientToRoom :: Server -> Handle -> Client -> RoomName -> Int -> IO (Maybe PrivateRoom)
+checkAddClientToRoom Server{..} handle client roomName maxUsers = do
+  modifyMVar serverRooms $ \roomMap ->
+        if Map.member roomName roomMap
+          then return (roomMap, Nothing)
+          else do
+            privateRoom <- newPrivateRoom roomName client handle maxUsers
+            printf "New Room created: %s, with User: %s\n" roomName (userName $ clientUser client)
+            return (Map.insert roomName privateRoom roomMap, Just privateRoom)
+
+createRoom :: Server -> Handle -> UserName -> Int -> IO ()
+createRoom server@Server{..} handle userName maxUsers = do
+
+  -- Generate a random room name
+  roomName <- replicateM 15 (randomRIO ('a', 'z'))
+
+  -- Check and add the client to the Client Map server maintains
+  okClient <- checkAddClient server handle userName 
+  case okClient of
+
+    -- If the name exists, print an error saying that it exits
+    -- TODO: Prompt the user for a new name
+    Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
+    
+    -- Add the client to the private room
+    Just client -> do
+
+      okRoom <- checkAddClientToRoom server handle client roomName maxUsers
+      case okRoom of
+        Nothing -> printToHandle handle . formatMessage $ RoomNameInUse roomName
+        Just room -> printToHandle handle . formatMessage $ RoomCreated roomName
+
+joinRoom :: Server -> Handle -> UserName -> RoomName -> IO ()
+joinRoom server@Server{..} handle userName roomName = do
+  -- TODO: Add check to see if the user joining the room exceeds maxUser. If yes refuse the connection
+  -- close the handle
+
+  -- Check and add the client to the Client Map server maintains
+  okClient <- checkAddClient server handle userName 
+  case okClient of
+
+    -- If the name exists, print an error saying that it exits
+    -- TODO: Prompt the user for a new name
+    Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
+    -- Add the client to the private room
+    -- Fetch the room from serverRoom Map
+    -- Update the `roomUser` of that PrivateRoom
+    Just client -> undefined
+      

@@ -1,0 +1,3 @@
+I guess we need TVar for the set of Users in `PrivateRoom` and for the `serverRoom` map in Server, because
+we'll get conflicts when two or more users tries to update the users in PrivateRoom. It won't because
+atomic and will lead to errors. Change this.
