@@ -69,6 +69,7 @@ newServer = do
 data Message = -- Server messages
                NameInUse UserName
              | Ping
+             | RoomCreated RoomName
              | Joined RoomName User
              | Leaved RoomName User
              | MatchStart RoomName 

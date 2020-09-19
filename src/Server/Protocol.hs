@@ -1,18 +1,23 @@
 module Server.Protocol where
 
 import Text.Printf (printf)
+
 import qualified Data.Set as Set
+
 import Server.Types
 
--- parseCommand :: String -> Maybe Message
--- parseCommand command = case words command of
+parseCommand :: String -> Maybe Message
+parseCommand command = case words command of
 --   ["PONG"]                   -> Just Pong
---   "LOGIN" : userName         -> Just $ Login (unwords userName)
+  -- "LOGIN" : userName         -> Just $ Login (unwords userName)
 --   ["QUIT"]                   -> Just Quit
---   "CREATEROOM" : userName : maxUsers  -> Just $ CreateRoom
---   "JOIN" : roomName          -> Just $ Join (unwords roomName)
+  "CREATEROOM" : userName : maxUsers  -> Just $ CreateRoom userName (read (unwords maxUsers) :: Int)
+  -- "JOIN" : roomName          -> Just $ Join (unwords roomName)
 --   "LEAVE" : roomName         -> Just $ Leave (unwords roomName)
 --   "NAMES" : roomName         -> Just $ Names (unwords roomName)
---   _                          -> Nothing
+  _                          -> Nothing
 --   where
 --     createRoomMsg = "CREATEROOM" : userName : maxUsers
+
+formatMessage :: Message -> String
+formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name

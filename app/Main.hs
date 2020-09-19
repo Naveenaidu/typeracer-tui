@@ -14,6 +14,7 @@ import           System.Console.CmdArgs (Data, Typeable, args, cmdArgs, def,
 import           System.Random          (randomRIO)                                         
 
 import UI
+import Server.Server
 
 data Config =
   Config
@@ -85,5 +86,6 @@ nonsense c = do
 
 main :: IO ()
 main = do
-  c <- cmdArgs config
-  nonsense c >>= run (fg_empty c) (fg_error c) (fg_correct c)
+  -- c <- cmdArgs config
+  -- nonsense c >>= run (fg_empty c) (fg_error c) (fg_correct c)
+  runServer "127.0.0.1" 9999
