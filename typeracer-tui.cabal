@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0680ada5a583ffa3713698804441ee740f013de7edfb559bac72ad7d9898f973
+-- hash: 883f98a7a1a503febd4905a42b0b5695d6d7024e33c879d887874eb07294b49c
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       Game
+      Server.Protocol
       Server.Types
       UI
   other-modules:
@@ -43,6 +44,7 @@ library
     , lens
     , microlens
     , microlens-th
+    , network
     , random
     , split
     , stm
@@ -68,6 +70,7 @@ executable typeracer-tui-exe
     , lens
     , microlens
     , microlens-th
+    , network
     , random
     , split
     , stm
@@ -95,6 +98,7 @@ test-suite typeracer-tui-test
     , lens
     , microlens
     , microlens-th
+    , network
     , random
     , split
     , stm

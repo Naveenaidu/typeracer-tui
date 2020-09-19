@@ -35,6 +35,7 @@ dependencies:
 - random
 - containers
 - stm
+- network
 
 library:
   source-dirs: src

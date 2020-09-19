@@ -6,13 +6,14 @@ import Control.Concurrent
 import Control.Concurrent.STM (STM, TVar, TChan, newTVar, newTVarIO, newTChanIO, newBroadcastTChan)
 import Data.Time              (UTCTime, getCurrentTime)
 import System.IO              (Handle)
+import Network.Socket
 
 import qualified Data.Map   as Map
 import qualified Data.Set   as Set
 import qualified Data.Text  as T
 
-type UserName = T.Text
-type RoomName = T.Text
+type UserName = String
+type RoomName = String
 
 data User = User {userName :: !UserName}
               deriving (Show, Ord, Eq)
@@ -25,7 +26,6 @@ data Client = Client { clientUser         :: !User
                      , clientHandle       :: !Handle
                      , clientPongTime     :: MVar UTCTime
                      , clientChan         :: TChan Message
-                     , clientRoomChans :: TVar (Map.Map RoomName (TChan Message))
                      }
 
 newClient :: User -> Handle -> IO Client
@@ -33,44 +33,53 @@ newClient user handle = do
   now             <- getCurrentTime
   clientPongTime  <- newMVar now
   clientChan      <- newTChanIO
-  clientRoomChans <- newTVarIO Map.empty
-  return $ Client user handle clientPongTime clientChan clientRoomChans
+  return $ Client user handle clientPongTime clientChan
 
 -- Private Room is used to group clients together so that they can complete in a match
-data PrivateRoom = PrivateRoom { roomName   :: !RoomName
-                               , roomUsers  :: TVar (Set.Set User)
-                               , roomChan   :: TChan Message
+-- Each Room will primary have the information about the sockets that are connected to it
+-- MaxUsers is used as a password to begin the game when the
+-- MIGHT HAVE TO CHANGE THE TYPES
+data PrivateRoom = PrivateRoom { roomName     :: !RoomName
+                               , roomUsers    :: TVar (Set.Set Client)
+                               , roomMaxUsers :: Int
+                               , roomSockets  :: TVar (Set.Set Socket)
+                               , roomChan     :: TChan Message
                                }
 
-newPrivateRoom :: RoomName -> Set.Set User -> STM PrivateRoom
-newPrivateRoom roomName users = do
+-- A private room is created using the hash of the room name, the main user in the set who called the
+-- CREATE Room event and their socket info.
+newPrivateRoom :: RoomName -> Set.Set Client -> Set.Set Socket -> Int -> STM PrivateRoom
+newPrivateRoom roomName users sock maxUsers= do
   roomUsers <- newTVar users
+  roomSockets <- newTVar sock
   roomChan  <- newBroadcastTChan
-  return $ PrivateRoom roomName roomUsers roomChan
+  return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan
 
 -- A server is a mutable map between User and client
 data Server = Server { serverUsers :: MVar (Map.Map User Client) 
                      , serverRooms :: TVar (Map.Map RoomName PrivateRoom)
                      }
 
+newServer :: IO Server
+newServer = do
+  serverUsers    <- newMVar Map.empty
+  serverRooms <- newTVarIO Map.empty
+  return $ Server serverUsers serverRooms
+
 data Message = -- Server messages
                NameInUse UserName
-             | LoggedIn UserName
              | Ping
-             | MsgReply User T.Text
-             | TellReply RoomName User T.Text
-             | NoSuchUser UserName
              | Joined RoomName User
              | Leaved RoomName User
-             | NamesReply RoomName (Set.Set User)
+             | MatchStart RoomName 
+             | MatchEnd RoomName 
+             | DisplayScores RoomName
              | InvalidMessage T.Text
                -- Client messages
              | Pong
              | Login UserName
-             | Msg User T.Text
-             | Tell RoomName T.Text
-             | Join RoomName
              | Leave RoomName
-             | Names RoomName
+             | CreateRoom UserName Int
+             | JoinRoom RoomName UserName
              | Quit
                deriving (Show, Eq)
