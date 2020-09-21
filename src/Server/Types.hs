@@ -3,7 +3,7 @@ module Server.Types where
 
 import Control.Monad.IO.Class
 import Control.Concurrent
-import Control.Concurrent.STM (STM, TVar, TChan, newTVar, newTVarIO, newTChanIO, newBroadcastTChanIO)
+import Control.Concurrent.STM (STM, TVar, TChan, newTVar, newTVarIO, newTChanIO, newBroadcastTChan, newBroadcastTChanIO)
 import Data.Time              (UTCTime, getCurrentTime)
 import System.IO              (Handle)
 import Network.Socket
@@ -42,35 +42,38 @@ newClient user handle = do
 
 -- NOTE: For now use Handle, if it does not work - switch back to sockets
 data PrivateRoom = PrivateRoom { roomName     :: !RoomName
-                               , roomUsers    :: MVar (Set.Set Client)
+                               , roomUsers    :: TVar (Set.Set Client)
                                , roomMaxUsers :: Int
-                               , roomSockets  :: MVar (Set.Set Handle)
+                               , roomSockets  :: TVar (Set.Set Handle)
                                , roomChan     :: TChan Message
                                }
 
 -- A private room is created using the hash of the room name, the main user in the set who called the
 -- CREATE Room event and their socket info.
-newPrivateRoom :: RoomName -> Client -> Handle -> Int -> IO PrivateRoom
+newPrivateRoom :: RoomName -> Client -> Handle -> Int -> STM PrivateRoom
 newPrivateRoom roomName user handle maxUsers= do
-  roomUsers <- newMVar $ Set.singleton user
-  roomSockets <- newMVar $ Set.singleton handle
-  roomChan  <- newBroadcastTChanIO
+  roomUsers <- newTVar $ Set.singleton user
+  roomSockets <- newTVar $ Set.singleton handle
+  roomChan  <- newBroadcastTChan
   return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan
 
 -- A server is a mutable map between User and client
 data Server = Server { serverUsers :: MVar (Map.Map User Client) 
-                     , serverRooms :: MVar (Map.Map RoomName PrivateRoom)
+                     , serverRooms :: TVar (Map.Map RoomName PrivateRoom)
                      }
 
 newServer :: IO Server
 newServer = do
   serverUsers    <- newMVar Map.empty
-  serverRooms <- newMVar Map.empty
+  serverRooms <- newTVarIO Map.empty
   return $ Server serverUsers serverRooms
 
 data Message = -- Server messages
                NameInUse UserName
              | RoomNameInUse RoomName
+             | RoomNotExist RoomName
+             | RoomNotFull RoomName
+             | RoomFull RoomName
              | Ping
              | RoomCreated RoomName
              | JoinedRoom RoomName UserName

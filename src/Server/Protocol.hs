@@ -22,5 +22,7 @@ parseCommand command = case words command of
 formatMessage :: Message -> String
 formatMessage (NameInUse name) = printf "NAME IN USE %s" name 
 formatMessage (RoomNameInUse name) = printf "ROOM NAME IN USE %s" name 
+formatMessage (RoomNotExist name) = printf "ROOM DOES NOT EXIST %s" name 
+formatMessage (RoomFull name) = printf "ROOM IS FULL %s" name 
 formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name
 formatMessage (JoinedRoom roomName userName) = printf "%s JOINED ROOM %s" userName roomName

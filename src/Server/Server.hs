@@ -3,6 +3,7 @@
 module Server.Server where
 
 import Control.Concurrent
+import Control.Monad.STM
 import Control.Concurrent.STM.TVar
 import Control.Monad
 import System.Random
@@ -20,6 +21,8 @@ import Text.Printf        (printf)
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set        as Set
+
 
 import Server.Client
 import Server.Types
@@ -104,23 +107,34 @@ checkAddClient Server{..} handle userName = do
 
   -- Add the User to the Server Map
   modifyMVar serverUsers $ \clientMap ->
+
+    -- If user exists, then do not do anything
     if Map.member user clientMap
       then return (clientMap, Nothing)
+
+      -- If user does not exists, then add user to the serverUser Map
       else do
         client <- newClient user handle
         printf "New user connected: %s\n" userName
         return (Map.insert user client clientMap, Just client)
 
--- Check and Map Client to the Private Room
+removeClient :: Server -> User -> IO ()
+removeClient Server{..} user =
+  modifyMVar_ serverUsers $ return . Map.delete user 
+
 checkAddClientToRoom :: Server -> Handle -> Client -> RoomName -> Int -> IO (Maybe PrivateRoom)
-checkAddClientToRoom Server{..} handle client roomName maxUsers = do
-  modifyMVar serverRooms $ \roomMap ->
-        if Map.member roomName roomMap
-          then return (roomMap, Nothing)
-          else do
-            privateRoom <- newPrivateRoom roomName client handle maxUsers
-            printf "New Room created: %s, with User: %s\n" roomName (userName $ clientUser client)
-            return (Map.insert roomName privateRoom roomMap, Just privateRoom)
+checkAddClientToRoom Server{..} handle client roomName maxUsers = atomically $ do
+  roomMap <- readTVar serverRooms
+  case Map.lookup roomName roomMap of
+    
+    -- If the room exist, Then it's a error
+    Just room -> return Nothing
+
+    -- If the room does not exist, create room and add client to the room
+    Nothing -> do
+      privateRoom <- newPrivateRoom roomName client handle maxUsers
+      modifyTVar' serverRooms $ Map.insert roomName privateRoom
+      return (Just privateRoom)
 
 createRoom :: Server -> Handle -> UserName -> Int -> IO ()
 createRoom server@Server{..} handle userName maxUsers = do
@@ -135,7 +149,7 @@ createRoom server@Server{..} handle userName maxUsers = do
     -- If the name exists, print an error saying that it exits
     -- TODO: Prompt the user for a new name
     Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
-    
+
     -- Add the client to the private room
     Just client -> do
 
@@ -144,20 +158,47 @@ createRoom server@Server{..} handle userName maxUsers = do
         Nothing -> printToHandle handle . formatMessage $ RoomNameInUse roomName
         Just room -> printToHandle handle . formatMessage $ RoomCreated roomName
 
+isRoomFull :: PrivateRoom -> STM Bool
+isRoomFull room = do
+  clients <- readTVar (roomUsers room)
+  let maxUsers = (roomMaxUsers room)
+  return (Set.size clients > maxUsers)
+
+-- | Checks to run, before we join someone in room
+-- TODO: Do we really need the `RoomNotFull` Message type.
+checkBeforeJoinRoom :: Server -> RoomName -> IO (Maybe Message)
+checkBeforeJoinRoom server@Server{..} roomName = atomically $ do
+  -- Check if room exists 
+  roomMap <- readTVar serverRooms
+
+  case Map.lookup roomName roomMap of
+    -- If room does not exist
+    Nothing -> return $ Just $ RoomNotExist roomName
+    -- If Room exist, check if room reached it's max capacity
+    Just room -> do
+      roomFull <- isRoomFull room
+      if (roomFull) 
+        then return $ Just $ RoomFull roomName
+        else return $ Nothing
+
+-- | Join the client to room
+-- | If the number of players in the room equal maxUsers, spawn a new thread to start the game
+joinClientToRoom :: Server -> Handle -> Client -> RoomName -> IO ()
+joinClientToRoom Server{..} handle client@Client{..} roomName = undefined
+
 joinRoom :: Server -> Handle -> UserName -> RoomName -> IO ()
 joinRoom server@Server{..} handle userName roomName = do
-  -- TODO: Add check to see if the user joining the room exceeds maxUser. If yes refuse the connection
-  -- close the handle
-
-  -- Check and add the client to the Client Map server maintains
-  okClient <- checkAddClient server handle userName 
-  case okClient of
-
-    -- If the name exists, print an error saying that it exits
-    -- TODO: Prompt the user for a new name
-    Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
-    -- Add the client to the private room
-    -- Fetch the room from serverRoom Map
-    -- Update the `roomUser` of that PrivateRoom
-    Just client -> undefined
-      
+  checkBeforeJoin' <- checkBeforeJoinRoom server roomName
+  case checkBeforeJoin' of
+    -- Check if we can join the user to room
+    Just (RoomNotExist _) -> printToHandle  handle.formatMessage $ RoomNotExist roomName
+    Just (RoomFull _) ->  printToHandle  handle.formatMessage $ RoomFull roomName
+    
+    -- If no errors, then join the user to the room
+    Nothing -> do
+      okClient <- checkAddClient server handle userName
+      case okClient of
+        Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
+        
+        -- Join the client to room
+        Just client -> undefined
