@@ -26,7 +26,7 @@ data Client = Client { clientUser         :: !User
                      , clientHandle       :: !Handle
                      , clientPongTime     :: MVar UTCTime
                      , clientChan         :: TChan Message
-                     }
+                     } deriving Eq
 
 newClient :: User -> Handle -> IO Client
 newClient user handle = do
@@ -42,9 +42,9 @@ newClient user handle = do
 
 -- NOTE: For now use Handle, if it does not work - switch back to sockets
 data PrivateRoom = PrivateRoom { roomName     :: !RoomName
-                               , roomUsers    :: TVar (Set.Set Client)
+                               , roomUsers    :: TVar [Client]
                                , roomMaxUsers :: Int
-                               , roomSockets  :: TVar (Set.Set Handle)
+                               , roomSockets  :: TVar [Handle]
                                , roomChan     :: TChan Message
                                }
 
@@ -52,8 +52,8 @@ data PrivateRoom = PrivateRoom { roomName     :: !RoomName
 -- CREATE Room event and their socket info.
 newPrivateRoom :: RoomName -> Client -> Handle -> Int -> STM PrivateRoom
 newPrivateRoom roomName user handle maxUsers= do
-  roomUsers <- newTVar $ Set.singleton user
-  roomSockets <- newTVar $ Set.singleton handle
+  roomUsers <- newTVar $  [user]
+  roomSockets <- newTVar $ [handle]
   roomChan  <- newBroadcastTChan
   return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan
 

@@ -4,9 +4,10 @@ module Server.Server where
 
 import Control.Concurrent
 import Control.Monad.STM
-import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM
 import Control.Monad
 import System.Random
+import Control.Monad.IO.Class
 
 import Control.Exception  hiding (handle)
 import Control.Monad      (forever, join, void)
@@ -22,7 +23,6 @@ import Text.Printf        (printf)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
-
 
 import Server.Client
 import Server.Types
@@ -79,7 +79,7 @@ connectClient server handle = do
   -- Read the command comming from the client after joining
   readCommand
     where
-      waitDelay       = 60
+      waitDelay       = 600
       waitDelayMicros = waitDelay * 1000 * 1000
 
       readCommand = do
@@ -98,7 +98,7 @@ procClientCommand :: Server -> Handle -> Message -> IO ()
 procClientCommand server handle command = do
   case command of
     (CreateRoom userName maxUsers) -> createRoom server handle userName maxUsers
-    (JoinRoom roomName userName)   -> undefined
+    (JoinRoom roomName userName)   -> joinRoom server handle userName roomName
 
 checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
 checkAddClient Server{..} handle userName = do
@@ -158,11 +158,13 @@ createRoom server@Server{..} handle userName maxUsers = do
         Nothing -> printToHandle handle . formatMessage $ RoomNameInUse roomName
         Just room -> printToHandle handle . formatMessage $ RoomCreated roomName
 
+-- Check if the room will be full
+-- This check is done after the user is added to the room
 isRoomFull :: PrivateRoom -> STM Bool
 isRoomFull room = do
   clients <- readTVar (roomUsers room)
   let maxUsers = (roomMaxUsers room)
-  return (Set.size clients > maxUsers)
+  return (length clients >= maxUsers)
 
 -- | Checks to run, before we join someone in room
 -- TODO: Do we really need the `RoomNotFull` Message type.
@@ -182,9 +184,63 @@ checkBeforeJoinRoom server@Server{..} roomName = atomically $ do
         else return $ Nothing
 
 -- | Join the client to room
+-- | Add the user to map and return the list of client to whom join message needs to be sent)
 -- | If the number of players in the room equal maxUsers, spawn a new thread to start the game
-joinClientToRoom :: Server -> Handle -> Client -> RoomName -> IO ()
-joinClientToRoom Server{..} handle client@Client{..} roomName = undefined
+-- | ASK: How to get rid of `nested if` :(
+joinClientToRoom :: Server -> Handle -> Client -> RoomName -> IO (Message, Maybe [Client])
+joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
+  -- Fetch the roomMap from the server
+  roomMap <- readTVar serverRooms
+
+  -- If the room exists, add the user to the room and add the handle to the room
+  case Map.lookup roomName roomMap of
+    Just room -> do
+
+      -- Check if the room is full before adding the client
+      roomFull <- isRoomFull room
+      if (roomFull) 
+       then do  return $ (RoomFull roomName, Nothing)
+       else do
+        -- Room Not Full: Add client to the room
+        modifyTVar (roomUsers room) $ (:) client
+        modifyTVar (roomSockets room) $ (:) handle
+
+        -- TODO: Send the message to other users about the joining of new user
+        
+        -- Check if the room is full `after` adding the client
+        roomFull' <- isRoomFull room
+        usersToNotify <- usersForJoinNotification room client
+        if (roomFull')
+          -- If room is full then spawn a new thread
+          then do
+            return $ (RoomFull roomName, Just usersToNotify)
+          -- If room is not full send join notification to all the clients
+          -- else return $ JoinedRoom roomName (userName clientUser)
+          else do
+            return $ ( JoinedRoom roomName (userName clientUser), Just usersToNotify)
+
+-- | Send message to Chan
+-- | ASK: What's the benefit of writing data to a TChan.
+-- sendMessageRoom :: PrivateRoom -> Message -> STM ()
+-- sendMessageRoom PrivateRoom{..} = writeTChan roomChan
+
+-- -- | Send join notification to all the other clients in the room
+usersForJoinNotification :: PrivateRoom -> Client -> STM [Client]
+usersForJoinNotification PrivateRoom{..} joinedClient = do
+  -- Get all the clients in the room
+  users <- readTVar roomUsers
+
+  -- Send notification of user joined to everyone in the room except the one who just joined
+  let usersToNotify = [ u | u <- users, u /= joinedClient ]
+  return usersToNotify
+
+-- Helper function to send message to a client
+sendMessage :: Client -> Message -> IO ()
+sendMessage Client{..} = printToHandle clientHandle . formatMessage 
+
+-- Helper function to send messages to a list of clients
+sendMessageToUsers :: [Client] -> Message -> [IO ()]
+sendMessageToUsers clients = mapM sendMessage clients
 
 joinRoom :: Server -> Handle -> UserName -> RoomName -> IO ()
 joinRoom server@Server{..} handle userName roomName = do
@@ -199,6 +255,16 @@ joinRoom server@Server{..} handle userName roomName = do
       okClient <- checkAddClient server handle userName
       case okClient of
         Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
-        
+
         -- Join the client to room
-        Just client -> undefined
+        Just client -> do
+          joinClientToRoomMessage <- joinClientToRoom server handle client roomName
+          case joinClientToRoomMessage of
+            (RoomFull roomName, Nothing)  -> printToHandle  handle.formatMessage $ RoomFull roomName
+            (RoomFull roomName, Just usersToNotify) ->  do 
+              sequence_ $ sendMessageToUsers usersToNotify (JoinedRoom roomName userName)
+              sequence_ $ sendMessageToUsers usersToNotify (RoomFull roomName)
+              -- printToHandle  handle.formatMessage $ RoomFull roomName
+            (JoinedRoom roomName userName, Just usersToNotify') -> do
+              sequence_ $ sendMessageToUsers usersToNotify' (JoinedRoom roomName userName)
+              -- printf "New user: joined room:  %s%s\n" userName roomName
