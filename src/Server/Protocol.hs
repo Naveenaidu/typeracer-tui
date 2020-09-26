@@ -26,3 +26,4 @@ formatMessage (RoomNotExist name) = printf "ROOM DOES NOT EXIST %s" name
 formatMessage (RoomFull name) = printf "ROOM IS FULL %s" name 
 formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name
 formatMessage (JoinedRoom roomName userName) = printf "%s JOINED ROOM %s" userName roomName
+formatMessage (MatchStart roomName) = printf "MATCH STARTED IN ROOM %s" roomName

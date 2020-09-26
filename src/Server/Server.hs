@@ -97,8 +97,9 @@ connectClient server handle = do
 procClientCommand :: Server -> Handle -> Message -> IO ()
 procClientCommand server handle command = do
   case command of
-    (CreateRoom userName maxUsers) -> createRoom server handle userName maxUsers
-    (JoinRoom roomName userName)   -> joinRoom server handle userName roomName
+    (CreateRoom userName maxUsers)    -> createRoom server handle userName maxUsers
+    (JoinRoom roomName userName)      -> joinRoom server handle userName roomName
+    (MatchEnd roomName accuracy wpm)  -> endMatch server handle roomName accuracy wpm
 
 checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
 checkAddClient Server{..} handle userName = do
@@ -205,8 +206,6 @@ joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
         modifyTVar (roomUsers room) $ (:) client
         modifyTVar (roomSockets room) $ (:) handle
 
-        -- TODO: Send the message to other users about the joining of new user
-        
         -- Check if the room is full `after` adding the client
         roomFull' <- isRoomFull room
         usersToNotify <- usersForJoinNotification room client
@@ -260,11 +259,13 @@ joinRoom server@Server{..} handle userName roomName = do
         Just client -> do
           joinClientToRoomMessage <- joinClientToRoom server handle client roomName
           case joinClientToRoomMessage of
-            (RoomFull roomName, Nothing)  -> printToHandle  handle.formatMessage $ RoomFull roomName
+            (RoomFull roomName, Nothing)  -> sendMessage client  (RoomFull roomName)
             (RoomFull roomName, Just usersToNotify) ->  do 
               sequence_ $ sendMessageToUsers usersToNotify (JoinedRoom roomName userName)
-              sequence_ $ sendMessageToUsers usersToNotify (RoomFull roomName)
-              -- printToHandle  handle.formatMessage $ RoomFull roomName
+              sequence_ $ sendMessageToUsers (client:usersToNotify) (RoomFull roomName)
+              sequence_ $ sendMessageToUsers (client:usersToNotify) (MatchStart roomName)
             (JoinedRoom roomName userName, Just usersToNotify') -> do
               sequence_ $ sendMessageToUsers usersToNotify' (JoinedRoom roomName userName)
-              -- printf "New user: joined room:  %s%s\n" userName roomName
+
+endMatch :: Server -> Handle -> RoomName -> Int -> Int -> IO ()
+endMatch server@Server{..} handle roomName accuracy wpm = undefined 

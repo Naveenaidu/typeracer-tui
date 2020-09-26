@@ -18,6 +18,10 @@ type RoomName = String
 data User = User {userName :: !UserName}
               deriving (Show, Ord, Eq)
 
+data Score = Score { accuarcy :: Int
+                   , wpm :: Int
+                   } deriving (Show,Ord,Eq)
+
 -- | The Typeracer game is the client 
 -- | Handle is equivalent to the socket to which the users will be connected to
 -- | A Chan is an unbounded Message Queue, which stores the message object it receives from
@@ -26,6 +30,7 @@ data Client = Client { clientUser         :: !User
                      , clientHandle       :: !Handle
                      , clientPongTime     :: MVar UTCTime
                      , clientChan         :: TChan Message
+                     , clientScore        :: Score
                      } deriving Eq
 
 newClient :: User -> Handle -> IO Client
@@ -33,7 +38,8 @@ newClient user handle = do
   now             <- getCurrentTime
   clientPongTime  <- newMVar now
   clientChan      <- newTChanIO
-  return $ Client user handle clientPongTime clientChan
+  let score = Score 0 0
+  return $ Client user handle clientPongTime clientChan score
 
 -- Private Room is used to group clients together so that they can complete in a match
 -- Each Room will primary have the information about the sockets that are connected to it
@@ -46,6 +52,7 @@ data PrivateRoom = PrivateRoom { roomName     :: !RoomName
                                , roomMaxUsers :: Int
                                , roomSockets  :: TVar [Handle]
                                , roomChan     :: TChan Message
+                               , roomUsersGameEnd :: Int
                                }
 
 -- A private room is created using the hash of the room name, the main user in the set who called the
@@ -55,7 +62,7 @@ newPrivateRoom roomName user handle maxUsers= do
   roomUsers <- newTVar $  [user]
   roomSockets <- newTVar $ [handle]
   roomChan  <- newBroadcastTChan
-  return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan
+  return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan 0
 
 -- A server is a mutable map between User and client
 data Server = Server { serverUsers :: MVar (Map.Map User Client) 
@@ -80,7 +87,7 @@ data Message = -- Server messages
              | Wait
              | Leaved RoomName User
              | MatchStart RoomName 
-             | MatchEnd RoomName 
+             | MatchEnd RoomName Int Int
              | DisplayScores RoomName
              | InvalidMessage T.Text
                -- Client messages
