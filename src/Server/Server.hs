@@ -23,6 +23,7 @@ import Text.Printf        (printf)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
+import Data.List
 
 import Server.Client
 import Server.Types
@@ -99,7 +100,7 @@ procClientCommand server handle command = do
   case command of
     (CreateRoom userName maxUsers)    -> createRoom server handle userName maxUsers
     (JoinRoom roomName userName)      -> joinRoom server handle userName roomName
-    (MatchEnd roomName accuracy wpm)  -> endMatch server handle roomName accuracy wpm
+    (MatchEnd roomName userName accuracy wpm)  -> endMatch server handle roomName userName accuracy wpm
 
 checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
 checkAddClient Server{..} handle userName = do
@@ -163,7 +164,7 @@ createRoom server@Server{..} handle userName maxUsers = do
 -- This check is done after the user is added to the room
 isRoomFull :: PrivateRoom -> STM Bool
 isRoomFull room = do
-  clients <- readTVar (roomUsers room)
+  clients <- readTVar (roomClients room)
   let maxUsers = (roomMaxUsers room)
   return (length clients >= maxUsers)
 
@@ -203,7 +204,7 @@ joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
        then do  return $ (RoomFull roomName, Nothing)
        else do
         -- Room Not Full: Add client to the room
-        modifyTVar (roomUsers room) $ (:) client
+        modifyTVar (roomClients room) $ (:) client
         modifyTVar (roomSockets room) $ (:) handle
 
         -- Check if the room is full `after` adding the client
@@ -227,7 +228,7 @@ joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
 usersForJoinNotification :: PrivateRoom -> Client -> STM [Client]
 usersForJoinNotification PrivateRoom{..} joinedClient = do
   -- Get all the clients in the room
-  users <- readTVar roomUsers
+  users <- readTVar roomClients
 
   -- Send notification of user joined to everyone in the room except the one who just joined
   let usersToNotify = [ u | u <- users, u /= joinedClient ]
@@ -267,5 +268,46 @@ joinRoom server@Server{..} handle userName roomName = do
             (JoinedRoom roomName userName, Just usersToNotify') -> do
               sequence_ $ sendMessageToUsers usersToNotify' (JoinedRoom roomName userName)
 
-endMatch :: Server -> Handle -> RoomName -> Int -> Int -> IO ()
-endMatch server@Server{..} handle roomName accuracy wpm = undefined 
+
+-- Update the score of the client
+updateClientScore :: UserName -> Int -> Int -> [Client] -> [Client]
+updateClientScore userName' accuracy' wpm' clients = map (updateScore userName' accuracy' wpm') clients  
+  where 
+    updateScore userName' accuracy' wpm' client =
+      -- If username is persent, then return the client with updated score, 
+      -- else return the client unchanged
+      if ((userName $ clientUser client) == userName')
+        then do 
+          let score = Score{accuracy=accuracy', wpm=wpm'}
+          client{clientScore = score}
+        else client
+
+
+-- When `END MATCH` command is recived from client. Update the number of players for which game has 
+-- ended variable in the private room. And also update the score of the user.
+-- When all the players have finished the game, send the scores to all the users. That might mean
+-- We might have to spawn a new thread to handle it.
+-- FIX ME: Allow players to re-play the game in the same room
+endMatch :: Server -> Handle -> RoomName -> UserName -> Int -> Int -> IO ()
+endMatch server@Server{..} handle roomName userName' accuracy wpm = atomically $ do
+  -- Check if room exists 
+  roomMap <- readTVar serverRooms 
+  case Map.lookup roomName roomMap of
+    -- If room does not exist, This case will not exist I guess
+    Nothing -> return ()
+
+    -- End the match for the client and update the score
+    Just room -> do
+      clients <- readTVar $ roomClients room
+
+      -- Update the score of the client present in the room
+      modifyTVar' (roomClients room) $ updateClientScore userName' accuracy wpm
+      -- Update the number of players who have finished the game
+      modifyTVar' (numClientsMatchEnd room) (+1)
+
+      -- Check if all the players have finished the game
+      -- If yes, then send `GAME END` message and initiate the Score Sending procedure
+
+      undefined
+
+  undefined

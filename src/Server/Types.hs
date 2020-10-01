@@ -18,7 +18,7 @@ type RoomName = String
 data User = User {userName :: !UserName}
               deriving (Show, Ord, Eq)
 
-data Score = Score { accuarcy :: Int
+data Score = Score { accuracy :: Int
                    , wpm :: Int
                    } deriving (Show,Ord,Eq)
 
@@ -47,22 +47,24 @@ newClient user handle = do
 -- MIGHT HAVE TO CHANGE THE TYPES
 
 -- NOTE: For now use Handle, if it does not work - switch back to sockets
+-- THOUGHT: Will it help me if I use a Set of (UserName, Client) in roomClient??
 data PrivateRoom = PrivateRoom { roomName     :: !RoomName
-                               , roomUsers    :: TVar [Client]
+                               , roomClients    :: TVar [Client]
                                , roomMaxUsers :: Int
                                , roomSockets  :: TVar [Handle]
                                , roomChan     :: TChan Message
-                               , roomUsersGameEnd :: Int
+                               , numClientsMatchEnd :: TVar Int
                                }
 
 -- A private room is created using the hash of the room name, the main user in the set who called the
 -- CREATE Room event and their socket info.
 newPrivateRoom :: RoomName -> Client -> Handle -> Int -> STM PrivateRoom
 newPrivateRoom roomName user handle maxUsers= do
-  roomUsers <- newTVar $  [user]
+  roomClients <- newTVar $  [user]
   roomSockets <- newTVar $ [handle]
   roomChan  <- newBroadcastTChan
-  return $ PrivateRoom roomName roomUsers maxUsers roomSockets roomChan 0
+  numClientsMatchEnd <- newTVar $ 0
+  return $ PrivateRoom roomName roomClients maxUsers roomSockets roomChan numClientsMatchEnd
 
 -- A server is a mutable map between User and client
 data Server = Server { serverUsers :: MVar (Map.Map User Client) 
@@ -87,7 +89,8 @@ data Message = -- Server messages
              | Wait
              | Leaved RoomName User
              | MatchStart RoomName 
-             | MatchEnd RoomName Int Int
+             | MatchEnd RoomName UserName Int Int
+             | GameEnd RoomName -- When all the clients finishes the game
              | DisplayScores RoomName
              | InvalidMessage T.Text
                -- Client messages
