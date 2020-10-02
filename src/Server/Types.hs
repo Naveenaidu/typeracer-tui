@@ -53,7 +53,7 @@ data PrivateRoom = PrivateRoom { roomName     :: !RoomName
                                , roomMaxUsers :: Int
                                , roomSockets  :: TVar [Handle]
                                , roomChan     :: TChan Message
-                               , numClientsMatchEnd :: TVar Int
+                               , numClientsGameEnd :: TVar Int
                                }
 
 -- A private room is created using the hash of the room name, the main user in the set who called the
@@ -63,8 +63,8 @@ newPrivateRoom roomName user handle maxUsers= do
   roomClients <- newTVar $  [user]
   roomSockets <- newTVar $ [handle]
   roomChan  <- newBroadcastTChan
-  numClientsMatchEnd <- newTVar $ 0
-  return $ PrivateRoom roomName roomClients maxUsers roomSockets roomChan numClientsMatchEnd
+  numClientsGameEnd <- newTVar $ 0
+  return $ PrivateRoom roomName roomClients maxUsers roomSockets roomChan numClientsGameEnd
 
 -- A server is a mutable map between User and client
 data Server = Server { serverUsers :: MVar (Map.Map User Client) 
@@ -89,9 +89,12 @@ data Message = -- Server messages
              | Wait
              | Leaved RoomName User
              | MatchStart RoomName 
-             | MatchEnd RoomName UserName Int Int
-             | GameEnd RoomName -- When all the clients finishes the game
+             | GameEnd RoomName UserName Int Int -- When a single client has finished playing the game
+             | MatchEnd RoomName -- When all the clients finishes the game
              | DisplayScores RoomName
+             | SendScoreStart RoomName Int
+             | SendScore RoomName UserName Int Score -- Send score along with the ranking of the user
+             | SendScoreEnd RoomName Int
              | InvalidMessage T.Text
                -- Client messages
              | Pong

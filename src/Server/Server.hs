@@ -100,7 +100,7 @@ procClientCommand server handle command = do
   case command of
     (CreateRoom userName maxUsers)    -> createRoom server handle userName maxUsers
     (JoinRoom roomName userName)      -> joinRoom server handle userName roomName
-    (MatchEnd roomName userName accuracy wpm)  -> endMatch server handle roomName userName accuracy wpm
+    (GameEnd roomName userName accuracy wpm)  -> endGame server handle roomName userName accuracy wpm
 
 checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
 checkAddClient Server{..} handle userName = do
@@ -268,6 +268,14 @@ joinRoom server@Server{..} handle userName roomName = do
             (JoinedRoom roomName userName, Just usersToNotify') -> do
               sequence_ $ sendMessageToUsers usersToNotify' (JoinedRoom roomName userName)
 
+-- Check if all the players have completed playing the game
+-- This check is done after the user is added to the room
+isMatchEnded :: PrivateRoom -> STM Bool
+isMatchEnded room = do
+  numClients <- readTVar (numClientsGameEnd room)
+  let maxUsers = (roomMaxUsers room)
+  return (numClients == maxUsers)
+
 
 -- Update the score of the client
 updateClientScore :: UserName -> Int -> Int -> [Client] -> [Client]
@@ -282,14 +290,22 @@ updateClientScore userName' accuracy' wpm' clients = map (updateScore userName' 
           client{clientScore = score}
         else client
 
+-- Rank the clients in the decreasing order of their score
+rankClients :: PrivateRoom -> [Client]
+rankClients = undefined
+
+-- Send Scores to Client
+-- Rank the scores of the clients, and send them in decreasing order
+sendScoresToClient :: PrivateRoom -> [IO ()]
+sendScoresToClient = undefined
 
 -- When `END MATCH` command is recived from client. Update the number of players for which game has 
 -- ended variable in the private room. And also update the score of the user.
 -- When all the players have finished the game, send the scores to all the users. That might mean
 -- We might have to spawn a new thread to handle it.
 -- FIX ME: Allow players to re-play the game in the same room
-endMatch :: Server -> Handle -> RoomName -> UserName -> Int -> Int -> IO ()
-endMatch server@Server{..} handle roomName userName' accuracy wpm = atomically $ do
+endGame :: Server -> Handle -> RoomName -> UserName -> Int -> Int -> IO ()
+endGame server@Server{..} handle roomName userName' accuracy wpm = atomically $ do
   -- Check if room exists 
   roomMap <- readTVar serverRooms 
   case Map.lookup roomName roomMap of
@@ -303,10 +319,14 @@ endMatch server@Server{..} handle roomName userName' accuracy wpm = atomically $
       -- Update the score of the client present in the room
       modifyTVar' (roomClients room) $ updateClientScore userName' accuracy wpm
       -- Update the number of players who have finished the game
-      modifyTVar' (numClientsMatchEnd room) (+1)
+      modifyTVar' (numClientsGameEnd room) (+1)
 
       -- Check if all the players have finished the game
       -- If yes, then send `GAME END` message and initiate the Score Sending procedure
+      isMatchEnded' <- isMatchEnded room
+      if (isMatchEnded')
+        then do undefined
+        else return ()
 
       undefined
 

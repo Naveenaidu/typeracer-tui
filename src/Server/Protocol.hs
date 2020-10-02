@@ -27,3 +27,9 @@ formatMessage (RoomFull name) = printf "ROOM IS FULL %s" name
 formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name
 formatMessage (JoinedRoom roomName userName) = printf "%s JOINED ROOM %s" userName roomName
 formatMessage (MatchStart roomName) = printf "MATCH STARTED IN ROOM %s" roomName
+formatMessage (SendScoreStart roomName maxUsers) = printf "SENDING SCORES TO CLIENT IN ROOM %s" roomName
+formatMessage (SendScore roomName userName rank score) =
+  printf "%s SCORED %s accuracy and %s wpm in room %s with rank %s" 
+    userName (accuracy score) (wpm score) roomName rank
+formatMessage (SendScoreEnd roomName maxUsers) = 
+  printf "%s SCORES SENT TO CLIENsT IN ROOM %s"  maxUsers roomName
