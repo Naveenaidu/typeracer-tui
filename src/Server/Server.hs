@@ -19,15 +19,27 @@ import System.IO          (hClose, hSetNewlineMode, hSetBuffering, BufferMode(..
                            IOMode(..), universalNewlineMode, hGetLine, Handle, stdout)
 import System.Timeout     (timeout)
 import Text.Printf        (printf)
+import Data.Time              (UTCTime, getCurrentTime)
 
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
 import Data.List
+import Data.Ord
 
 import Server.Client
 import Server.Types
 import Server.Protocol
+
+-- | Types used for communicating between functions
+-- Tells about the state of the match
+data MatchState = MatchHasEnded
+                | MatchRunning
+                | RoomIsFull
+                | RoomNotFull
+                | ClientJoinedRoom
+                | RoomDoesNotExist
+
 
 runServer :: HostName -> Int -> IO ()
 runServer host port = withSocketsDo $ do
@@ -97,10 +109,14 @@ connectClient server handle = do
 -- Process the command received by client
 procClientCommand :: Server -> Handle -> Message -> IO ()
 procClientCommand server handle command = do
+  -- TODO: Error message when the command read is wrong, how to do that????
+  -- TODO: Send a message whenever a client disconnects from the server while playing game, else we'll be stuck in a loop
   case command of
     (CreateRoom userName maxUsers)    -> createRoom server handle userName maxUsers
     (JoinRoom roomName userName)      -> joinRoom server handle userName roomName
-    (GameEnd roomName userName accuracy wpm)  -> endGame server handle roomName userName accuracy wpm
+    (GameEnd roomName userName accuracy wpm)  -> do
+      gameEndTime <- getCurrentTime
+      endGame server handle roomName userName accuracy wpm gameEndTime
 
 checkAddClient :: Server -> Handle -> UserName -> IO (Maybe Client)
 checkAddClient Server{..} handle userName = do
@@ -145,6 +161,7 @@ createRoom server@Server{..} handle userName maxUsers = do
   roomName <- replicateM 15 (randomRIO ('a', 'z'))
 
   -- Check and add the client to the Client Map server maintains
+  -- If Room does not exist create the room
   okClient <- checkAddClient server handle userName 
   case okClient of
 
@@ -170,26 +187,26 @@ isRoomFull room = do
 
 -- | Checks to run, before we join someone in room
 -- TODO: Do we really need the `RoomNotFull` Message type.
-checkBeforeJoinRoom :: Server -> RoomName -> IO (Maybe Message)
+checkBeforeJoinRoom :: Server -> RoomName -> IO MatchState
 checkBeforeJoinRoom server@Server{..} roomName = atomically $ do
   -- Check if room exists 
   roomMap <- readTVar serverRooms
 
   case Map.lookup roomName roomMap of
     -- If room does not exist
-    Nothing -> return $ Just $ RoomNotExist roomName
+    Nothing -> return RoomDoesNotExist
     -- If Room exist, check if room reached it's max capacity
     Just room -> do
       roomFull <- isRoomFull room
       if (roomFull) 
-        then return $ Just $ RoomFull roomName
-        else return $ Nothing
+        then return RoomIsFull
+        else return RoomNotFull
 
 -- | Join the client to room
 -- | Add the user to map and return the list of client to whom join message needs to be sent)
 -- | If the number of players in the room equal maxUsers, spawn a new thread to start the game
 -- | ASK: How to get rid of `nested if` :(
-joinClientToRoom :: Server -> Handle -> Client -> RoomName -> IO (Message, Maybe [Client])
+joinClientToRoom :: Server -> Handle -> Client -> RoomName -> IO (MatchState, Maybe [Client])
 joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
   -- Fetch the roomMap from the server
   roomMap <- readTVar serverRooms
@@ -201,7 +218,7 @@ joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
       -- Check if the room is full before adding the client
       roomFull <- isRoomFull room
       if (roomFull) 
-       then do  return $ (RoomFull roomName, Nothing)
+       then do  return $ (RoomIsFull, Nothing)
        else do
         -- Room Not Full: Add client to the room
         modifyTVar (roomClients room) $ (:) client
@@ -213,11 +230,11 @@ joinClientToRoom Server{..} handle client@Client{..} roomName = atomically $ do
         if (roomFull')
           -- If room is full then spawn a new thread
           then do
-            return $ (RoomFull roomName, Just usersToNotify)
+            return $ (RoomIsFull, Just usersToNotify)
           -- If room is not full send join notification to all the clients
           -- else return $ JoinedRoom roomName (userName clientUser)
           else do
-            return $ ( JoinedRoom roomName (userName clientUser), Just usersToNotify)
+            return $ ( ClientJoinedRoom, Just usersToNotify)
 
 -- | Send message to Chan
 -- | ASK: What's the benefit of writing data to a TChan.
@@ -247,11 +264,11 @@ joinRoom server@Server{..} handle userName roomName = do
   checkBeforeJoin' <- checkBeforeJoinRoom server roomName
   case checkBeforeJoin' of
     -- Check if we can join the user to room
-    Just (RoomNotExist _) -> printToHandle  handle.formatMessage $ RoomNotExist roomName
-    Just (RoomFull _) ->  printToHandle  handle.formatMessage $ RoomFull roomName
+    RoomDoesNotExist -> printToHandle  handle.formatMessage $ RoomNotExist roomName
+    RoomIsFull ->  printToHandle  handle.formatMessage $ RoomFull roomName
     
     -- If no errors, then join the user to the room
-    Nothing -> do
+    RoomNotFull -> do
       okClient <- checkAddClient server handle userName
       case okClient of
         Nothing -> printToHandle  handle.formatMessage $ NameInUse userName
@@ -260,12 +277,13 @@ joinRoom server@Server{..} handle userName roomName = do
         Just client -> do
           joinClientToRoomMessage <- joinClientToRoom server handle client roomName
           case joinClientToRoomMessage of
-            (RoomFull roomName, Nothing)  -> sendMessage client  (RoomFull roomName)
-            (RoomFull roomName, Just usersToNotify) ->  do 
+            (RoomIsFull, Nothing)  -> sendMessage client  (RoomFull roomName)
+            -- Send Match Start message
+            (RoomIsFull, Just usersToNotify) ->  do 
               sequence_ $ sendMessageToUsers usersToNotify (JoinedRoom roomName userName)
               sequence_ $ sendMessageToUsers (client:usersToNotify) (RoomFull roomName)
               sequence_ $ sendMessageToUsers (client:usersToNotify) (MatchStart roomName)
-            (JoinedRoom roomName userName, Just usersToNotify') -> do
+            (ClientJoinedRoom, Just usersToNotify') -> do
               sequence_ $ sendMessageToUsers usersToNotify' (JoinedRoom roomName userName)
 
 -- Check if all the players have completed playing the game
@@ -278,56 +296,104 @@ isMatchEnded room = do
 
 
 -- Update the score of the client
-updateClientScore :: UserName -> Int -> Int -> [Client] -> [Client]
-updateClientScore userName' accuracy' wpm' clients = map (updateScore userName' accuracy' wpm') clients  
+updateClientScore :: UserName -> Int -> Int -> UTCTime -> [Client] -> [Client]
+updateClientScore userName' accuracy' wpm' gameEndTime clients = 
+  map (updateScore userName' accuracy' wpm') clients  
   where 
     updateScore userName' accuracy' wpm' client =
       -- If username is persent, then return the client with updated score, 
       -- else return the client unchanged
       if ((userName $ clientUser client) == userName')
         then do 
-          let score = Score{accuracy=accuracy', wpm=wpm'}
+          let score = Score{accuracy=accuracy', wpm=wpm', time=gameEndTime}
           client{clientScore = score}
         else client
 
--- Rank the clients in the decreasing order of their score
-rankClients :: PrivateRoom -> [Client]
-rankClients = undefined
+-- | End the game for the client
+-- Return Nothing if match is not ended, else return Just MatchEnd
+endClientGame :: PrivateRoom -> UserName -> Int -> Int -> UTCTime -> IO MatchState
+endClientGame room userName' accuracy wpm gameEndTime = atomically $ do
+  clients <- readTVar $ roomClients room
 
--- Send Scores to Client
--- Rank the scores of the clients, and send them in decreasing order
-sendScoresToClient :: PrivateRoom -> [IO ()]
-sendScoresToClient = undefined
+  -- Update the score of the client present in the room
+  modifyTVar' (roomClients room) $ updateClientScore userName' accuracy wpm gameEndTime
+  -- Update the number of players who have finished the game
+  modifyTVar' (numClientsGameEnd room) (+1)
+
+  -- Check if all the players have finished the game
+  -- If yes, then send `GAME END` message and initiate the Score Sending procedure
+  isMatchEnded' <- isMatchEnded room
+  if (isMatchEnded')
+    then return MatchHasEnded
+    else return MatchRunning
 
 -- When `END MATCH` command is recived from client. Update the number of players for which game has 
 -- ended variable in the private room. And also update the score of the user.
 -- When all the players have finished the game, send the scores to all the users. That might mean
 -- We might have to spawn a new thread to handle it.
--- FIX ME: Allow players to re-play the game in the same room
-endGame :: Server -> Handle -> RoomName -> UserName -> Int -> Int -> IO ()
-endGame server@Server{..} handle roomName userName' accuracy wpm = atomically $ do
+-- TODO: Allow players to re-play the game in the same room
+endGame :: Server -> Handle -> RoomName -> UserName -> Int -> Int -> UTCTime -> IO ()
+endGame server@Server{..} handle roomName userName' accuracy wpm gameEndTime =  do
   -- Check if room exists 
-  roomMap <- readTVar serverRooms 
+  roomMap <- atomically $ readTVar serverRooms 
   case Map.lookup roomName roomMap of
     -- If room does not exist, This case will not exist I guess
     Nothing -> return ()
 
-    -- End the match for the client and update the score
+    -- End the match for the client and update the score and check the state of the match
     Just room -> do
-      clients <- readTVar $ roomClients room
+      matchState <- endClientGame room userName' accuracy wpm gameEndTime
+      case matchState of
+        MatchHasEnded -> endMatch room
+        MatchRunning -> return ()
+      
+-- Rank the clients in the `increasing` order of their timestamp
+-- Ranking needs to be done, on the basis of the timestamp the game was completed
+-- Compare clients on the field `timestamp`
+-- Note: sortBy sorts in increasing order, hence using flip to reverse the sorting
+-- `flip` reverses the order of arguments
+rankClients :: [Client] -> [(Int, Client)]
+rankClients clients = zip [1,2 ..] clientsSortedByScore 
+  where
+    clientsSortedByScore = sortBy compareTime clients  
+    compareTime client1 client2 = 
+      compare  clientTime1 clientTime2
+      where clientTime1 = time $ clientScore client1
+            clientTime2 = time $ clientScore client2
 
-      -- Update the score of the client present in the room
-      modifyTVar' (roomClients room) $ updateClientScore userName' accuracy wpm
-      -- Update the number of players who have finished the game
-      modifyTVar' (numClientsGameEnd room) (+1)
+-- Send a list of messages to client
+sendScoreToClient :: [Message] -> Client -> IO ()
+sendScoreToClient scoreBoard client = do
+  mapM_ (sendMessage client) scoreBoard
 
-      -- Check if all the players have finished the game
-      -- If yes, then send `GAME END` message and initiate the Score Sending procedure
-      isMatchEnded' <- isMatchEnded room
-      if (isMatchEnded')
-        then do undefined
-        else return ()
+-- Send Scores to Client
+-- Rank the scores of the clients, and send them in decreasing order
+sendScoresToClients :: [Message] -> [Client] -> IO ()
+sendScoresToClients scoreBoard clients  = do
+  mapM_ (sendScoreToClient scoreBoard) clients
 
-      undefined
+-- Prepare the list of Messages that contains the score of all Clients
+prepareScoreBoard :: RoomName -> [Client] -> IO [Message]
+prepareScoreBoard roomName clients = do
+  let rankedClients = rankClients clients
+  return $ map prepareMessages rankedClients
+  where
+    prepareMessages (rank, client) = do
+      let userName' = userName (clientUser client)
+      SendScore roomName userName' rank (clientScore client)
+      
 
-  undefined
+-- Send MatchEnd message to all clients
+-- Send Scoreboard to all clients
+-- Disconnect all users
+-- TODO: Remove client and PrivateRoom from the ServerMap
+endMatch :: PrivateRoom -> IO ()
+endMatch room = do
+  let roomName' = roomName room
+  clients <-  readTVarIO $ roomClients room
+  scoreBoard <- prepareScoreBoard roomName' clients
+  let numClients = length clients
+  sequence_ $ sendMessageToUsers clients (MatchEnd roomName')
+  sequence_ $ sendMessageToUsers clients (SendScoreStart roomName' numClients )
+  sendScoresToClients scoreBoard clients 
+  sequence_ $ sendMessageToUsers clients (SendScoreEnd roomName' numClients)

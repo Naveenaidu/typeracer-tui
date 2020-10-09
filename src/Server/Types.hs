@@ -20,6 +20,7 @@ data User = User {userName :: !UserName}
 
 data Score = Score { accuracy :: Int
                    , wpm :: Int
+                   , time :: UTCTime
                    } deriving (Show,Ord,Eq)
 
 -- | The Typeracer game is the client 
@@ -38,7 +39,8 @@ newClient user handle = do
   now             <- getCurrentTime
   clientPongTime  <- newMVar now
   clientChan      <- newTChanIO
-  let score = Score 0 0
+  currTime <- getCurrentTime
+  let score = Score 0 0 currTime
   return $ Client user handle clientPongTime clientChan score
 
 -- Private Room is used to group clients together so that they can complete in a match
@@ -81,7 +83,6 @@ data Message = -- Server messages
                NameInUse UserName
              | RoomNameInUse RoomName
              | RoomNotExist RoomName
-             | RoomNotFull RoomName
              | RoomFull RoomName
              | Ping
              | RoomCreated RoomName

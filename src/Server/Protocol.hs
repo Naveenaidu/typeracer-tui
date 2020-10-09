@@ -12,7 +12,9 @@ parseCommand command = case words command of
   -- "LOGIN" : userName         -> Just $ Login (unwords userName)
 --   ["QUIT"]                   -> Just Quit
   "CREATEROOM" : userName : maxUsers  -> Just $ CreateRoom userName (read (unwords maxUsers) :: Int)
-  "JOINROOM" : roomName : userName    -> Just $ JoinRoom (roomName) (unwords userName)
+  "JOINROOM" : roomName : userName    -> Just $ JoinRoom roomName (unwords userName)
+  "GAMEEND" : roomName : userName : accuracy : wpm -> 
+    Just $ GameEnd roomName userName (read accuracy :: Int) (read $ unwords wpm :: Int)
 --   "LEAVE" : roomName         -> Just $ Leave (unwords roomName)
 --   "NAMES" : roomName         -> Just $ Names (unwords roomName)
   _                          -> Nothing
@@ -27,9 +29,12 @@ formatMessage (RoomFull name) = printf "ROOM IS FULL %s" name
 formatMessage (RoomCreated name) = printf "ROOM CREATED %s" name
 formatMessage (JoinedRoom roomName userName) = printf "%s JOINED ROOM %s" userName roomName
 formatMessage (MatchStart roomName) = printf "MATCH STARTED IN ROOM %s" roomName
-formatMessage (SendScoreStart roomName maxUsers) = printf "SENDING SCORES TO CLIENT IN ROOM %s" roomName
+formatMessage (MatchEnd roomName) = printf "MATCH ENDED IN ROOM %s" roomName
+
+formatMessage (SendScoreStart roomName maxUsers) = 
+  printf "SENDING %d SCORES TO CLIENT IN ROOM %s"  maxUsers roomName
 formatMessage (SendScore roomName userName rank score) =
-  printf "%s SCORED %s accuracy and %s wpm in room %s with rank %s" 
+  printf "%s SCORED %d accuracy and %d wpm in room %s with rank %d" 
     userName (accuracy score) (wpm score) roomName rank
 formatMessage (SendScoreEnd roomName maxUsers) = 
-  printf "%s SCORES SENT TO CLIENsT IN ROOM %s"  maxUsers roomName
+  printf "%d SCORES SENT TO CLIENsT IN ROOM %s"  maxUsers roomName
