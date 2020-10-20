@@ -36,6 +36,7 @@ dependencies:
 - containers
 - stm
 - network
+- extra
 
 library:
   source-dirs: src

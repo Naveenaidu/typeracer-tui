@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c38c024835c43e16456bc37a7e69ddb2339beba1dd8b01a53bccca1ed45833e4
+-- hash: 3108ae876a33c27a36609a1217c1490ba248332c1411aa6cdeeaa25acdbd7b62
 
 name:           typeracer-tui
 version:        0.1.0.0
@@ -42,6 +42,7 @@ library
     , brick
     , cmdargs
     , containers
+    , extra
     , file-embed
     , lens
     , microlens
@@ -68,6 +69,7 @@ executable typeracer-tui-exe
     , brick
     , cmdargs
     , containers
+    , extra
     , file-embed
     , lens
     , microlens
@@ -96,6 +98,7 @@ test-suite typeracer-tui-test
     , brick
     , cmdargs
     , containers
+    , extra
     , file-embed
     , lens
     , microlens
